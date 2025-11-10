@@ -105,9 +105,13 @@ export class WebRTCManager {
 
         // Add local stream tracks if available
         if (this.localStream) {
+            console.log(`🎵 Adding ${this.localStream.getTracks().length} tracks to new peer connection with ${peerName}`);
             this.localStream.getTracks().forEach(track => {
                 connection.addTrack(track, this.localStream!);
+                console.log(`  ✅ Added ${track.kind} track (enabled: ${track.enabled})`);
             });
+        } else {
+            console.warn(`⚠️ No local stream available when creating connection with ${peerName}`);
         }
 
         // Create data channel
@@ -122,10 +126,22 @@ export class WebRTCManager {
 
         // Handle incoming tracks
         connection.ontrack = (event) => {
-            console.log('🎥 Received track from:', peerName);
+            console.log(`🎥 Received ${event.track.kind} track from ${peerName}:`, {
+                trackId: event.track.id,
+                enabled: event.track.enabled,
+                muted: event.track.muted,
+                readyState: event.track.readyState,
+                streamId: event.streams[0]?.id
+            });
             const peer = this.peers.get(peerId);
             if (peer) {
-                peer.stream = event.streams[0];
+                if (!peer.stream) {
+                    peer.stream = event.streams[0];
+                    console.log(`✅ Set stream for ${peerName}`);
+                } else if (peer.stream.id !== event.streams[0].id) {
+                    console.log(`🔄 Updated stream for ${peerName}`);
+                    peer.stream = event.streams[0];
+                }
                 this.notifyPeerUpdate();
             }
         };

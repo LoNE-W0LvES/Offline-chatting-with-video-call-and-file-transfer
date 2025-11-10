@@ -33,6 +33,29 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         setLocalPeerId(webrtc.getLocalPeerId());
         setLocalPeerName(webrtc.getLocalPeerName());
 
+        // Initialize media stream IMMEDIATELY
+        (async () => {
+            try {
+                console.log('🎥 Initializing local media stream on startup...');
+                const stream = await webrtc.initLocalStream(true, true);
+                if (isActive) {
+                    setLocalStream(stream);
+                    console.log('✅ Local media stream ready before peer connections');
+                }
+            } catch (error) {
+                console.error('❌ Failed to initialize media:', error);
+                try {
+                    const stream = await webrtc.initLocalStream(false, true);
+                    if (isActive) {
+                        setLocalStream(stream);
+                        setIsVideoEnabled(false);
+                    }
+                } catch (audioError) {
+                    console.error('❌ Failed to get audio:', audioError);
+                }
+            }
+        })();
+
         const signaling = new LocalSignalingServer(
             webrtc.getLocalPeerId(),
             userName,
@@ -260,11 +283,11 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             setLocalStream(stream);
             console.log('✅ Local media stream initialized successfully');
 
-            // Add tracks to all existing peer connections
+            // Add tracks to all existing peer connections and renegotiate
             const peers = Array.from(webrtcRef.current['peers'].values());
             if (peers.length > 0) {
                 console.log(`🔄 Adding media tracks to ${peers.length} existing peer connection(s)`);
-                peers.forEach(peer => {
+                for (const peer of peers) {
                     stream.getTracks().forEach(track => {
                         const sender = peer.connection.getSenders().find(s => s.track?.kind === track.kind);
                         if (!sender) {
@@ -272,7 +295,20 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                             console.log(`✅ Added ${track.kind} track to peer:`, peer.name);
                         }
                     });
-                });
+
+                    // Renegotiate after adding tracks
+                    if (peer.connection.signalingState === 'stable') {
+                        console.log(`🔄 Renegotiating with ${peer.name}...`);
+                        const offer = await peer.connection.createOffer();
+                        await peer.connection.setLocalDescription(offer);
+                        signalingRef.current?.send({
+                            type: 'offer',
+                            to: peer.id,
+                            data: offer,
+                        });
+                        console.log(`✅ Sent renegotiation offer to ${peer.name}`);
+                    }
+                }
             }
         } catch (error) {
             console.error('❌ Failed to start video:', error);

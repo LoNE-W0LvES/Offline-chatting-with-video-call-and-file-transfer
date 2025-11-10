@@ -60,11 +60,9 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
         }
     }, [peers]);
 
-    // Start video when peer ID is ready
+    // Register user when peer ID is ready
     useEffect(() => {
         if (!localPeerId) return;
-
-        startVideo();
 
         fetch(`${API_URL}/api/users`, {
             method: 'POST',
@@ -78,7 +76,7 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
         }).catch(err => {
             console.error('Failed to save user info:', err);
         });
-    }, [localPeerId]);
+    }, [localPeerId, localPeerName, account.id]);
 
     // Send heartbeat to keep session alive
     useEffect(() => {
