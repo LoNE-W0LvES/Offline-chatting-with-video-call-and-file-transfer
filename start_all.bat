@@ -1,7 +1,22 @@
 @echo off
+
+:: Check for admin rights
+net session >nul 2>&1
+if %errorLevel% neq 0 (
+    echo Requesting administrator privileges...
+    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    exit /b
+)
+
+:: Change to the script's directory (important when running as admin)
+cd /d "%~dp0"
+
 echo ========================================
 echo  LAN Collaboration Suite Launcher
+echo  [Running as Administrator]
 echo ========================================
+echo.
+echo Current directory: %CD%
 echo.
 
 :: Get local IP address

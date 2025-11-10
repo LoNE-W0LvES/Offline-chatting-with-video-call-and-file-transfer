@@ -21,7 +21,6 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
     const [copied, setCopied] = useState(false);
     const [isWaitingForOthers, setIsWaitingForOthers] = useState(true);
 
-    // Fixed: useLocalNetwork expects 2 parameters (userName, roomId)
     const {
         peers,
         messages,
@@ -29,7 +28,6 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
         localStream,
         isAudioEnabled,
         isVideoEnabled,
-        startVideo,
         sendMessage,
         sendFile,
         toggleAudio,
@@ -41,7 +39,7 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
     const handleLeave = async () => {
         const activeCallId = localStorage.getItem('activeCallId');
         if (activeCallId) {
-            console.log('🔚 Explicitly ending call:', activeCallId);
+            console.log('📞 Explicitly ending call:', activeCallId);
             await fetch(`${API_URL}/api/calls/${activeCallId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
@@ -91,8 +89,7 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
         return () => clearInterval(heartbeatInterval);
     }, [localPeerId]);
 
-    // Cleanup on unmount - only delete user info, don't end the call here
-    // The call should only be ended when explicitly leaving via handleLeave
+    // Cleanup on unmount
     useEffect(() => {
         return () => {
             if (localPeerId) {
@@ -171,8 +168,9 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
                     />
                 </div>
 
-                <div className="w-96 border-l border-gray-200 flex flex-col">
-                    <div className="p-4 border-b border-gray-200">
+                {/* ✅ FIXED: Sidebar with proper overflow handling */}
+                <div className="w-96 border-l border-gray-200 flex flex-col overflow-hidden">
+                    <div className="p-4 border-b border-gray-200 overflow-y-auto" style={{ maxHeight: '40vh' }}>
                         <PeerList peers={peers} localPeerName={localPeerName} />
                     </div>
 

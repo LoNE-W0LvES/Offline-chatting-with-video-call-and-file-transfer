@@ -27,14 +27,15 @@ export function useLocalNetwork(userName: string, roomId?: string) {
 
         initializingRef.current = true;
         let isActive = true;
+        let discoveryInterval: NodeJS.Timeout | null = null;
 
         const webrtc = new WebRTCManager(userName);
         webrtcRef.current = webrtc;
         setLocalPeerId(webrtc.getLocalPeerId());
         setLocalPeerName(webrtc.getLocalPeerName());
 
-        // Initialize media stream IMMEDIATELY
-        (async () => {
+        // Initialize media stream FIRST, then start signaling
+        const initializeAndConnect = async () => {
             try {
                 console.log('🎥 Initializing local media stream on startup...');
                 const stream = await webrtc.initLocalStream(true, true);
@@ -54,223 +55,252 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                     console.error('❌ Failed to get audio:', audioError);
                 }
             }
-        })();
 
-        const signaling = new LocalSignalingServer(
-            webrtc.getLocalPeerId(),
-            userName,
-            roomId
-        );
-        signalingRef.current = signaling;
+            // Only start signaling AFTER media is initialized
+            const signaling = new LocalSignalingServer(
+                webrtc.getLocalPeerId(),
+                userName,
+                roomId
+            );
+            signalingRef.current = signaling;
 
-        const peersRef = new Map<string, Peer>();
-        const pendingConnections = new Set<string>();
-        const pendingIceCandidates = new Map<string, RTCIceCandidateInit[]>();
+            const peersRef = new Map<string, Peer>();
+            const pendingConnections = new Set<string>();
+            const pendingIceCandidates = new Map<string, RTCIceCandidateInit[]>();
 
-        webrtc.setOnPeerUpdate((updatedPeers) => {
-            if (!isActive) return;
-            setPeers([...updatedPeers]);
-            updatedPeers.forEach(p => peersRef.set(p.id, p));
-        });
+            webrtc.setOnPeerUpdate((updatedPeers) => {
+                if (!isActive) return;
+                setPeers([...updatedPeers]);
+                updatedPeers.forEach(p => peersRef.set(p.id, p));
+            });
 
-        webrtc.setOnMessage((message) => {
-            if (!isActive) return;
-            setMessages(prev => [...prev, message]);
-        });
+            webrtc.setOnMessage((message) => {
+                if (!isActive) return;
+                setMessages(prev => [...prev, message]);
+            });
 
-        webrtc.setOnFileTransfer((transfer) => {
-            if (!isActive) return;
-            setFileTransfers(prev => [...prev, transfer]);
-        });
+            webrtc.setOnFileTransfer((transfer) => {
+                if (!isActive) return;
+                setFileTransfers(prev => [...prev, transfer]);
+            });
 
-        signaling.setOnSignal(async (message: SignalingMessage) => {
-            if (!isActive) return;
+            signaling.setOnSignal(async (message: SignalingMessage) => {
+                if (!isActive) return;
 
-            if (message.type === 'peer-discovery') {
-                const existingPeer = peersRef.get(message.from);
+                if (message.type === 'peer-discovery') {
+                    const existingPeer = peersRef.get(message.from);
 
-                if (message.from === webrtc.getLocalPeerId()) {
-                    return;
-                }
+                    if (message.from === webrtc.getLocalPeerId()) {
+                        return;
+                    }
 
-                const shouldInitiate = !existingPeer &&
-                    !pendingConnections.has(message.from) &&
-                    webrtc.getLocalPeerId() > message.from;
+                    // ✅ FIXED: Prevent duplicate connections
+                    if (existingPeer) {
+                        const state = existingPeer.connection.connectionState;
+                        if (state === 'connected' || state === 'connecting') {
+                            console.log('⏭️ Already connected/connecting to:', message.fromName, 'State:', state);
+                            return;
+                        }
+                    }
 
-                if (shouldInitiate) {
-                    console.log('🤝 Initiating connection to:', message.fromName);
-                    pendingConnections.add(message.from);
+                    // ✅ FIXED: Also check if connection is pending
+                    if (pendingConnections.has(message.from)) {
+                        console.log('⏭️ Connection already pending for:', message.fromName);
+                        return;
+                    }
+
+                    const shouldInitiate = !existingPeer &&
+                        !pendingConnections.has(message.from) &&
+                        webrtc.getLocalPeerId() > message.from;
+
+                    if (shouldInitiate) {
+                        console.log('🤝 Initiating connection to:', message.fromName);
+                        pendingConnections.add(message.from);
+
+                        try {
+                            const peerConnection = await webrtc.createPeerConnection(message.from, message.fromName);
+
+                            peerConnection.onicecandidate = (event) => {
+                                if (event.candidate && isActive) {
+                                    console.log('❄️ Got ICE candidate:', event.candidate.type);
+                                    signaling.send({
+                                        type: 'ice-candidate',
+                                        to: message.from,
+                                        data: event.candidate,
+                                    });
+                                } else if (!event.candidate) {
+                                    console.log('✅ ICE gathering complete for offer');
+                                }
+                            };
+
+                            const offer = await peerConnection.createOffer({
+                                offerToReceiveAudio: true,
+                                offerToReceiveVideo: true,
+                            });
+                            await peerConnection.setLocalDescription(offer);
+
+                            console.log('📤 Created and set local description (offer)');
+
+                            signaling.send({
+                                type: 'offer',
+                                to: message.from,
+                                data: offer,
+                            });
+
+                            console.log('✅ Sent offer to:', message.fromName);
+                        } catch (error) {
+                            console.error('❌ Error creating offer:', error);
+                            pendingConnections.delete(message.from);
+                        }
+                    }
+                } else if (message.type === 'offer') {
+                    console.log('📥 Received offer from:', message.fromName);
+
+                    // ✅ FIXED: Check for existing connection before creating new one
+                    const existingPeer = peersRef.get(message.from);
+                    if (existingPeer) {
+                        const state = existingPeer.connection.connectionState;
+                        if (state === 'connected' || state === 'connecting') {
+                            console.log('⏭️ Ignoring offer, already connected to:', message.fromName);
+                            return;
+                        }
+                    }
 
                     try {
-                        const peerConnection = await webrtc.createPeerConnection(message.from, message.fromName);
+                        let peerConnection = existingPeer?.connection;
 
-                        const iceCandidates: RTCIceCandidate[] = [];
-                        let iceGatheringComplete = false;
+                        if (!peerConnection) {
+                            peerConnection = await webrtc.createPeerConnection(message.from, message.fromName);
 
-                        peerConnection.onicecandidate = (event) => {
-                            if (event.candidate && isActive) {
-                                console.log('❄️ Got ICE candidate:', event.candidate.type);
-                                signaling.send({
-                                    type: 'ice-candidate',
-                                    to: message.from,
-                                    data: event.candidate,
-                                });
-                            } else if (!event.candidate) {
-                                console.log('✅ ICE gathering complete for offer');
-                                iceGatheringComplete = true;
+                            peerConnection.onicecandidate = (event) => {
+                                if (event.candidate && isActive) {
+                                    console.log('❄️ Got ICE candidate:', event.candidate.type);
+                                    signaling.send({
+                                        type: 'ice-candidate',
+                                        to: message.from,
+                                        data: event.candidate,
+                                    });
+                                } else if (!event.candidate) {
+                                    console.log('✅ ICE gathering complete for answer');
+                                }
+                            };
+                        }
+
+                        console.log('📥 Setting remote description (offer)');
+                        await peerConnection.setRemoteDescription(
+                            new RTCSessionDescription(message.data as RTCSessionDescriptionInit)
+                        );
+
+                        // Add any pending ICE candidates
+                        const pending = pendingIceCandidates.get(message.from);
+                        if (pending) {
+                            console.log(`❄️ Adding ${pending.length} pending ICE candidates`);
+                            for (const candidate of pending) {
+                                await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
                             }
-                        };
+                            pendingIceCandidates.delete(message.from);
+                        }
 
-                        const offer = await peerConnection.createOffer({
+                        const answer = await peerConnection.createAnswer({
                             offerToReceiveAudio: true,
                             offerToReceiveVideo: true,
                         });
-                        await peerConnection.setLocalDescription(offer);
+                        await peerConnection.setLocalDescription(answer);
 
-                        console.log('📤 Created and set local description (offer)');
+                        console.log('📤 Created and set local description (answer)');
 
                         signaling.send({
-                            type: 'offer',
+                            type: 'answer',
                             to: message.from,
-                            data: offer,
+                            data: answer,
                         });
 
-                        console.log('✅ Sent offer to:', message.fromName);
+                        console.log('✅ Sent answer to:', message.fromName);
                     } catch (error) {
-                        console.error('❌ Error creating offer:', error);
-                        pendingConnections.delete(message.from);
+                        console.error('❌ Error handling offer:', error);
                     }
-                }
-            } else if (message.type === 'offer') {
-                console.log('📥 Received offer from:', message.fromName);
+                } else if (message.type === 'answer') {
+                    console.log('📥 Received answer from:', message.fromName);
 
-                try {
-                    let peerConnection = peersRef.get(message.from)?.connection;
+                    const peer = peersRef.get(message.from);
+                    if (peer?.connection) {
+                        try {
+                            if (peer.connection.signalingState === 'have-local-offer') {
+                                await peer.connection.setRemoteDescription(
+                                    new RTCSessionDescription(message.data as RTCSessionDescriptionInit)
+                                );
 
-                    if (!peerConnection) {
-                        peerConnection = await webrtc.createPeerConnection(message.from, message.fromName);
-
-                        let iceGatheringComplete = false;
-
-                        peerConnection.onicecandidate = (event) => {
-                            if (event.candidate && isActive) {
-                                console.log('❄️ Got ICE candidate:', event.candidate.type);
-                                signaling.send({
-                                    type: 'ice-candidate',
-                                    to: message.from,
-                                    data: event.candidate,
-                                });
-                            } else if (!event.candidate) {
-                                console.log('✅ ICE gathering complete for answer');
-                                iceGatheringComplete = true;
-                            }
-                        };
-                    }
-
-                    console.log('📥 Setting remote description (offer)');
-                    await peerConnection.setRemoteDescription(
-                        new RTCSessionDescription(message.data as RTCSessionDescriptionInit)
-                    );
-
-                    // Add any pending ICE candidates
-                    const pending = pendingIceCandidates.get(message.from);
-                    if (pending) {
-                        console.log(`❄️ Adding ${pending.length} pending ICE candidates`);
-                        for (const candidate of pending) {
-                            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-                        }
-                        pendingIceCandidates.delete(message.from);
-                    }
-
-                    const answer = await peerConnection.createAnswer({
-                        offerToReceiveAudio: true,
-                        offerToReceiveVideo: true,
-                    });
-                    await peerConnection.setLocalDescription(answer);
-
-                    console.log('📤 Created and set local description (answer)');
-
-                    signaling.send({
-                        type: 'answer',
-                        to: message.from,
-                        data: answer,
-                    });
-
-                    console.log('✅ Sent answer to:', message.fromName);
-                } catch (error) {
-                    console.error('❌ Error handling offer:', error);
-                }
-            } else if (message.type === 'answer') {
-                console.log('📥 Received answer from:', message.fromName);
-
-                const peer = peersRef.get(message.from);
-                if (peer?.connection) {
-                    try {
-                        if (peer.connection.signalingState === 'have-local-offer') {
-                            await peer.connection.setRemoteDescription(
-                                new RTCSessionDescription(message.data as RTCSessionDescriptionInit)
-                            );
-
-                            // Add any pending ICE candidates
-                            const pending = pendingIceCandidates.get(message.from);
-                            if (pending) {
-                                for (const candidate of pending) {
-                                    await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
+                                // Add any pending ICE candidates
+                                const pending = pendingIceCandidates.get(message.from);
+                                if (pending) {
+                                    console.log(`❄️ Adding ${pending.length} pending ICE candidates`);
+                                    for (const candidate of pending) {
+                                        await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
+                                    }
+                                    pendingIceCandidates.delete(message.from);
                                 }
-                                pendingIceCandidates.delete(message.from);
-                            }
 
-                            pendingConnections.delete(message.from);
-                            console.log('✅ Connected to:', message.fromName);
+                                pendingConnections.delete(message.from);
+                                console.log('✅ Connected to:', message.fromName);
+                            }
+                        } catch (error) {
+                            console.error('❌ Error setting remote description:', error);
                         }
-                    } catch (error) {
-                        console.error('❌ Error setting remote description:', error);
+                    }
+                } else if (message.type === 'ice-candidate') {
+                    const peer = peersRef.get(message.from);
+                    if (peer?.connection) {
+                        try {
+                            if (peer.connection.remoteDescription) {
+                                console.log('❄️ Adding ICE candidate immediately');
+                                await peer.connection.addIceCandidate(
+                                    new RTCIceCandidate(message.data as RTCIceCandidateInit)
+                                );
+                            } else {
+                                console.log('⏳ Queuing ICE candidate (no remote description yet)');
+                                if (!pendingIceCandidates.has(message.from)) {
+                                    pendingIceCandidates.set(message.from, []);
+                                }
+                                pendingIceCandidates.get(message.from)?.push(message.data as RTCIceCandidateInit);
+                            }
+                        } catch (error) {
+                            console.error('❌ Error adding ICE candidate:', error);
+                        }
+                    } else {
+                        console.warn('⚠️ Received ICE candidate for unknown peer:', message.from);
                     }
                 }
-            } else if (message.type === 'ice-candidate') {
-                const peer = peersRef.get(message.from);
-                if (peer?.connection) {
-                    try {
-                        if (peer.connection.remoteDescription) {
-                            console.log('❄️ Adding ICE candidate immediately');
-                            await peer.connection.addIceCandidate(
-                                new RTCIceCandidate(message.data as RTCIceCandidateInit)
-                            );
-                        } else {
-                            console.log('⏳ Queuing ICE candidate (no remote description yet)');
-                            if (!pendingIceCandidates.has(message.from)) {
-                                pendingIceCandidates.set(message.from, []);
-                            }
-                            pendingIceCandidates.get(message.from)?.push(message.data as RTCIceCandidateInit);
-                        }
-                    } catch (error) {
-                        console.error('❌ Error adding ICE candidate:', error);
-                    }
-                } else {
-                    console.warn('⚠️ Received ICE candidate for unknown peer:', message.from);
+            });
+
+            discoveryInterval = setInterval(() => {
+                if (isActive) {
+                    signaling.broadcast('peer-discovery');
                 }
-            }
-        });
+            }, 2000);
 
-        const discoveryInterval = setInterval(() => {
-            if (isActive) {
-                signaling.broadcast('peer-discovery');
-            }
-        }, 2000);
+            signaling.broadcast('peer-discovery');
+            setTimeout(() => {
+                if (isActive) {
+                    signaling.broadcast('peer-discovery');
+                }
+            }, 500);
+        };
 
-        signaling.broadcast('peer-discovery');
-        setTimeout(() => {
-            if (isActive) {
-                signaling.broadcast('peer-discovery');
-            }
-        }, 500);
+        // Start the initialization process
+        initializeAndConnect();
 
         return () => {
             isActive = false;
             initializingRef.current = false;
-            clearInterval(discoveryInterval);
-            webrtc.cleanup();
-            signaling.close();
+            if (discoveryInterval) {
+                clearInterval(discoveryInterval);
+            }
+            if (signalingRef.current) {
+                signalingRef.current.close();
+            }
+            if (webrtcRef.current) {
+                webrtcRef.current.cleanup();
+            }
         };
     }, [userName, roomId]);
 

@@ -7,6 +7,7 @@ import { UsersPage } from './pages/UsersPage';
 import { FileServerPage } from './pages/FileServerPage';
 import { SharedWithMePage } from './pages/SharedWithMePage';
 import { MessagesPage } from './pages/MessagesPage';
+import { GlobalChatPage } from './pages/GlobalChatPage';
 import { Phone, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -37,7 +38,7 @@ interface Notification {
     read: boolean;
 }
 
-type Page = 'login' | 'signup' | 'home' | 'meeting' | 'users' | 'fileserver' | 'sharedwithme' | 'messages';
+type Page = 'login' | 'signup' | 'home' | 'meeting' | 'users' | 'fileserver' | 'sharedwithme' | 'messages' | 'globalchat';
 
 function App() {
     const [currentPage, setCurrentPage] = useState<Page>('login');
@@ -54,7 +55,6 @@ function App() {
         return audio;
     });
 
-    // ✅ FIXED: Clear processed call IDs when leaving meeting or changing pages
     useEffect(() => {
         if (currentPage !== 'meeting') {
             // Don't track processed calls when not in a meeting
@@ -109,22 +109,15 @@ function App() {
         const checkCalls = async () => {
             try {
                 const url = `${API_URL}/api/calls?toAccountId=${account.id}`;
-                console.log('🔍 Checking for calls:', url);
-
                 const response = await fetch(url);
                 if (response.ok) {
                     const calls = await response.json();
-                    console.log('📋 All calls received:', calls);
-
                     const ringingCalls = calls.filter((call: any) => call.status === 'ringing');
-                    console.log('🔔 Ringing calls:', ringingCalls);
 
                     if (ringingCalls.length > 0) {
                         const latestCall = ringingCalls[0];
 
                         if (latestCall.toAccountId === account.id && (!incomingCall || incomingCall.id !== latestCall.id)) {
-                            console.log('📞 NEW INCOMING CALL:', latestCall);
-
                             const newCall = {
                                 id: latestCall.id,
                                 fromAccountId: latestCall.fromAccountId,
@@ -152,11 +145,9 @@ function App() {
                         callRingtone.currentTime = 0;
                         setIncomingCall(null);
                     }
-                } else {
-                    console.error('❌ Failed to fetch calls:', response.status);
                 }
             } catch (error) {
-                console.error('❌ Failed to check calls:', error);
+                console.error('Failed to check calls:', error);
             }
         };
 
@@ -238,14 +229,6 @@ function App() {
     const handleCallUser = async (targetAccountId: string, targetName: string) => {
         const callRoomId = `call-${account?.id}-${targetAccountId}-${Date.now()}`;
 
-        console.log('📞 Initiating call to:', targetName, 'with data:', {
-            fromAccountId: account?.id,
-            toAccountId: targetAccountId,
-            fromName: account?.fullName,
-            toName: targetName,
-            roomId: callRoomId,
-        });
-
         try {
             const response = await fetch(`${API_URL}/api/calls`, {
                 method: 'POST',
@@ -259,24 +242,16 @@ function App() {
                 }),
             });
 
-            console.log('📡 Call API response status:', response.status);
-
             if (response.ok) {
                 const data = await response.json();
-                console.log('✅ Call created with ID:', data.call?.id);
                 if (data.call) {
                     localStorage.setItem('activeCallId', data.call.id);
-                    console.log('💾 Stored activeCallId in localStorage:', data.call.id);
                 }
-            } else {
-                const errorData = await response.text();
-                console.error('❌ Failed to initiate call:', response.status, errorData);
             }
         } catch (error) {
-            console.error('❌ Error calling API:', error);
+            console.error('Error calling API:', error);
         }
 
-        console.log('🚀 Caller joining meeting room:', callRoomId);
         handleJoinMeeting(callRoomId);
     };
 
@@ -395,7 +370,6 @@ function App() {
         }
     };
 
-    // Render incoming call modal on ALL pages (not just home)
     const incomingCallModal = incomingCall && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
@@ -516,6 +490,18 @@ function App() {
         );
     }
 
+    if (currentPage === 'globalchat' && account) {
+        return (
+            <>
+                <GlobalChatPage
+                    account={account}
+                    onBack={() => setCurrentPage('home')}
+                />
+                {incomingCallModal}
+            </>
+        );
+    }
+
     if (currentPage === 'messages' && account && selectedUser) {
         return (
             <>
@@ -547,6 +533,7 @@ function App() {
                     onViewUsers={() => setCurrentPage('users')}
                     onViewFileServer={() => setCurrentPage('fileserver')}
                     onViewSharedWithMe={() => setCurrentPage('sharedwithme')}
+                    onViewGlobalChat={() => setCurrentPage('globalchat')}
                     notifications={notifications}
                     onClearNotification={clearNotification}
                     onMarkAsRead={markNotificationAsRead}

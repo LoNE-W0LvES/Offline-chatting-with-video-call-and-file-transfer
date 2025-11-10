@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { Wifi, LogOut, Video, Users, ArrowRight, FolderOpen, Share2 } from 'lucide-react';
+import { Wifi, LogOut, Video, Users, ArrowRight, FolderOpen, Share2, MessageSquare } from 'lucide-react';
 import { Account } from '../App';
-import { GlobalChat } from '../components/GlobalChat';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { MeetingInvitation } from '../components/MeetingInvitation';
 
@@ -21,6 +20,7 @@ interface HomePageProps {
     onViewUsers: () => void;
     onViewFileServer: () => void;
     onViewSharedWithMe: () => void;
+    onViewGlobalChat: () => void;
     notifications: Notification[];
     onClearNotification: (id: string) => void;
     onMarkAsRead: (id: string) => void;
@@ -28,7 +28,19 @@ interface HomePageProps {
     onAddNotification: (notification: Omit<Notification, 'id' | 'read'>) => void;
 }
 
-export function HomePage({ account, onLogout, onJoinMeeting, onViewUsers, onViewFileServer, onViewSharedWithMe, notifications, onClearNotification, onMarkAsRead, onClearAll, onAddNotification }: HomePageProps) {
+export function HomePage({
+                             account,
+                             onLogout,
+                             onJoinMeeting,
+                             onViewUsers,
+                             onViewFileServer,
+                             onViewSharedWithMe,
+                             onViewGlobalChat,
+                             notifications,
+                             onClearNotification,
+                             onMarkAsRead,
+                             onClearAll
+                         }: HomePageProps) {
     const [roomId, setRoomId] = useState('');
     const [showMeetingInvitation, setShowMeetingInvitation] = useState(false);
 
@@ -36,7 +48,7 @@ export function HomePage({ account, onLogout, onJoinMeeting, onViewUsers, onView
         setShowMeetingInvitation(true);
     };
 
-    const handleStartMeeting = (newRoomId: string, invitedUsers: Account[]) => {
+    const handleStartMeeting = (newRoomId: string) => {
         setShowMeetingInvitation(false);
         onJoinMeeting(newRoomId);
     };
@@ -49,8 +61,8 @@ export function HomePage({ account, onLogout, onJoinMeeting, onViewUsers, onView
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100">
-            <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 overflow-hidden flex flex-col">
+            <header className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-600 rounded-lg">
@@ -79,9 +91,9 @@ export function HomePage({ account, onLogout, onJoinMeeting, onViewUsers, onView
                 </div>
             </header>
 
-            <main className="max-w-6xl mx-auto p-8">
-                <div className="grid lg:grid-cols-3 gap-6">
-                    <div className="lg:col-span-2 space-y-6">
+            <main className="flex-1 overflow-y-auto">
+                <div className="max-w-6xl mx-auto p-8">
+                    <div className="space-y-6">
                         <div className="grid md:grid-cols-2 gap-6">
                             <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
                                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
@@ -150,6 +162,23 @@ export function HomePage({ account, onLogout, onJoinMeeting, onViewUsers, onView
                                     <ArrowRight className="w-5 h-5" />
                                 </button>
                             </div>
+
+                            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
+                                <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
+                                    <MessageSquare className="w-6 h-6 text-indigo-600" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-2">Global Chat</h2>
+                                <p className="text-gray-600 mb-6">
+                                    Join the public chatroom with everyone
+                                </p>
+                                <button
+                                    onClick={onViewGlobalChat}
+                                    className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                    Open Chat
+                                    <ArrowRight className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
 
                         <div className="bg-white rounded-2xl shadow-lg p-8">
@@ -192,10 +221,6 @@ export function HomePage({ account, onLogout, onJoinMeeting, onViewUsers, onView
                                 <p className="text-sm text-gray-600">Share files instantly</p>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="lg:col-span-1 h-fit sticky top-8">
-                        <GlobalChat account={account} />
                     </div>
                 </div>
             </main>

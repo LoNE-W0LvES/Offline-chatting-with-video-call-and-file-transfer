@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Peer } from '../utils/webrtc';
-import { Mic, MicOff, Video, VideoOff } from 'lucide-react';
+import { MicOff, VideoOff } from 'lucide-react';
 
 interface VideoGridProps {
   localStream: MediaStream | null;
