@@ -81,18 +81,30 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                     try {
                         const peerConnection = await webrtc.createPeerConnection(message.from, message.fromName);
 
+                        const iceCandidates: RTCIceCandidate[] = [];
+                        let iceGatheringComplete = false;
+
                         peerConnection.onicecandidate = (event) => {
                             if (event.candidate && isActive) {
+                                console.log('❄️ Got ICE candidate:', event.candidate.type);
                                 signaling.send({
                                     type: 'ice-candidate',
                                     to: message.from,
                                     data: event.candidate,
                                 });
+                            } else if (!event.candidate) {
+                                console.log('✅ ICE gathering complete for offer');
+                                iceGatheringComplete = true;
                             }
                         };
 
-                        const offer = await peerConnection.createOffer();
+                        const offer = await peerConnection.createOffer({
+                            offerToReceiveAudio: true,
+                            offerToReceiveVideo: true,
+                        });
                         await peerConnection.setLocalDescription(offer);
+
+                        console.log('📤 Created and set local description (offer)');
 
                         signaling.send({
                             type: 'offer',
@@ -115,17 +127,24 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                     if (!peerConnection) {
                         peerConnection = await webrtc.createPeerConnection(message.from, message.fromName);
 
+                        let iceGatheringComplete = false;
+
                         peerConnection.onicecandidate = (event) => {
                             if (event.candidate && isActive) {
+                                console.log('❄️ Got ICE candidate:', event.candidate.type);
                                 signaling.send({
                                     type: 'ice-candidate',
                                     to: message.from,
                                     data: event.candidate,
                                 });
+                            } else if (!event.candidate) {
+                                console.log('✅ ICE gathering complete for answer');
+                                iceGatheringComplete = true;
                             }
                         };
                     }
 
+                    console.log('📥 Setting remote description (offer)');
                     await peerConnection.setRemoteDescription(
                         new RTCSessionDescription(message.data as RTCSessionDescriptionInit)
                     );
@@ -133,14 +152,20 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                     // Add any pending ICE candidates
                     const pending = pendingIceCandidates.get(message.from);
                     if (pending) {
+                        console.log(`❄️ Adding ${pending.length} pending ICE candidates`);
                         for (const candidate of pending) {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
                         }
                         pendingIceCandidates.delete(message.from);
                     }
 
-                    const answer = await peerConnection.createAnswer();
+                    const answer = await peerConnection.createAnswer({
+                        offerToReceiveAudio: true,
+                        offerToReceiveVideo: true,
+                    });
                     await peerConnection.setLocalDescription(answer);
+
+                    console.log('📤 Created and set local description (answer)');
 
                     signaling.send({
                         type: 'answer',
@@ -184,11 +209,12 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                 if (peer?.connection) {
                     try {
                         if (peer.connection.remoteDescription) {
+                            console.log('❄️ Adding ICE candidate immediately');
                             await peer.connection.addIceCandidate(
                                 new RTCIceCandidate(message.data as RTCIceCandidateInit)
                             );
                         } else {
-                            // Queue ICE candidates until remote description is set
+                            console.log('⏳ Queuing ICE candidate (no remote description yet)');
                             if (!pendingIceCandidates.has(message.from)) {
                                 pendingIceCandidates.set(message.from, []);
                             }
@@ -197,6 +223,8 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                     } catch (error) {
                         console.error('❌ Error adding ICE candidate:', error);
                     }
+                } else {
+                    console.warn('⚠️ Received ICE candidate for unknown peer:', message.from);
                 }
             }
         });
@@ -227,16 +255,35 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         if (!webrtcRef.current) return;
 
         try {
+            console.log('🎥 Initializing local media stream...');
             const stream = await webrtcRef.current.initLocalStream(true, true);
             setLocalStream(stream);
+            console.log('✅ Local media stream initialized successfully');
+
+            // Add tracks to all existing peer connections
+            const peers = Array.from(webrtcRef.current['peers'].values());
+            if (peers.length > 0) {
+                console.log(`🔄 Adding media tracks to ${peers.length} existing peer connection(s)`);
+                peers.forEach(peer => {
+                    stream.getTracks().forEach(track => {
+                        const sender = peer.connection.getSenders().find(s => s.track?.kind === track.kind);
+                        if (!sender) {
+                            peer.connection.addTrack(track, stream);
+                            console.log(`✅ Added ${track.kind} track to peer:`, peer.name);
+                        }
+                    });
+                });
+            }
         } catch (error) {
-            console.error('Failed to start video:', error);
+            console.error('❌ Failed to start video:', error);
             try {
+                console.log('⚠️ Trying audio-only fallback...');
                 const stream = await webrtcRef.current.initLocalStream(false, true);
                 setLocalStream(stream);
                 setIsVideoEnabled(false);
+                console.log('✅ Audio-only stream initialized');
             } catch (audioError) {
-                console.error('Failed to start audio:', audioError);
+                console.error('❌ Failed to start audio:', audioError);
             }
         }
     }, []);

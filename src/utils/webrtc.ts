@@ -94,7 +94,11 @@ export class WebRTCManager {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-            ]
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+            ],
+            iceCandidatePoolSize: 10,
         };
 
         const connection = new RTCPeerConnection(config);
@@ -132,6 +136,21 @@ export class WebRTCManager {
             if (connection.connectionState === 'failed' || connection.connectionState === 'disconnected') {
                 this.removePeer(peerId);
             }
+        };
+
+        // Log ICE connection state
+        connection.oniceconnectionstatechange = () => {
+            console.log(`❄️ ICE connection state with ${peerName}:`, connection.iceConnectionState);
+        };
+
+        // Log ICE gathering state
+        connection.onicegatheringstatechange = () => {
+            console.log(`🔍 ICE gathering state with ${peerName}:`, connection.iceGatheringState);
+        };
+
+        // Log signaling state
+        connection.onsignalingstatechange = () => {
+            console.log(`📡 Signaling state with ${peerName}:`, connection.signalingState);
         };
 
         // Store peer

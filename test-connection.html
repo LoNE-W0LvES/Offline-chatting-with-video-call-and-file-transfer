@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(to br, #EFF6FF, #DBEAFE);
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1E40AF;
+            margin-bottom: 10px;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .success { background: #D1FAE5; color: #065F46; }
+        .error { background: #FEE2E2; color: #991B1B; }
+        .warning { background: #FEF3C7; color: #92400E; }
+        .info { background: #DBEAFE; color: #1E40AF; }
+        button {
+            background: #2563EB;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #1D4ED8; }
+        button:disabled {
+            background: #9CA3AF;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #1F2937;
+            color: #10B981;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 2px 0;
+        }
+        .log-entry.error { color: #EF4444; }
+        .log-entry.success { color: #10B981; }
+        .log-entry.warning { color: #F59E0B; }
+        .candidate {
+            padding: 8px;
+            margin: 5px 0;
+            background: #F3F4F6;
+            border-left: 4px solid #2563EB;
+            border-radius: 4px;
+        }
+        .candidate.host { border-left-color: #10B981; }
+        .candidate.srflx { border-left-color: #F59E0B; }
+        .candidate.relay { border-left-color: #8B5CF6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebRTC Connection Test</h1>
+        <p>Use this tool to diagnose WebRTC connectivity issues</p>
+
+        <div>
+            <button onclick="testICE()">Test ICE Gathering</button>
+            <button onclick="testSTUN()">Test STUN Servers</button>
+            <button onclick="testMedia()">Test Camera/Mic</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div id="status"></div>
+        <div id="candidates"></div>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const logDiv = document.getElementById('log');
+        const statusDiv = document.getElementById('status');
+        const candidatesDiv = document.getElementById('candidates');
+
+        function log(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function showStatus(message, type) {
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function clearLog() {
+            logDiv.innerHTML = '';
+            candidatesDiv.innerHTML = '';
+            statusDiv.innerHTML = '';
+        }
+
+        async function testICE() {
+            clearLog();
+            log('Starting ICE gathering test...', 'info');
+            showStatus('Testing ICE gathering...', 'info');
+
+            const config = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                ]
+            };
+
+            const pc = new RTCPeerConnection(config);
+            const candidates = [];
+
+            pc.onicecandidate = (e) => {
+                if (e.candidate) {
+                    const type = e.candidate.type;
+                    const address = e.candidate.address || e.candidate.ip || 'unknown';
+                    candidates.push({ type, address });
+                    log(`ICE Candidate: ${type.toUpperCase()} - ${address}`, 'success');
+                } else {
+                    log('ICE Gathering Complete!', 'success');
+                    showResults(candidates);
+                }
+            };
+
+            pc.onicegatheringstatechange = () => {
+                log(`ICE Gathering State: ${pc.iceGatheringState}`, 'info');
+            };
+
+            try {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                log('Created offer and set local description', 'success');
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                showStatus(`Failed: ${error.message}`, 'error');
+            }
+        }
+
+        function showResults(candidates) {
+            const hasHost = candidates.some(c => c.type === 'host');
+            const hasSrflx = candidates.some(c => c.type === 'srflx');
+            const hasRelay = candidates.some(c => c.type === 'relay');
+
+            let html = '<h3>Candidates Found:</h3>';
+            candidates.forEach(c => {
+                html += `<div class="candidate ${c.type}">
+                    <strong>${c.type.toUpperCase()}</strong>: ${c.address}
+                </div>`;
+            });
+
+            candidatesDiv.innerHTML = html;
+
+            if (hasHost && hasSrflx) {
+                showStatus('Excellent! You have both local and public IP candidates. WebRTC should work across networks.', 'success');
+            } else if (hasHost && !hasSrflx) {
+                showStatus('Warning: Only local candidates found. STUN servers may be blocked. WebRTC will only work on the same network.', 'warning');
+            } else if (!hasHost) {
+                showStatus('Error: No candidates found. Check your network connection.', 'error');
+            }
+
+            log('Test complete. Review results above.', 'success');
+        }
+
+        async function testSTUN() {
+            clearLog();
+            log('Testing STUN servers...', 'info');
+            showStatus('Testing STUN servers...', 'info');
+
+            const stunServers = [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+            ];
+
+            for (const stun of stunServers) {
+                log(`Testing ${stun}...`, 'info');
+                const pc = new RTCPeerConnection({ iceServers: [{ urls: stun }] });
+
+                let foundSrflx = false;
+
+                pc.onicecandidate = (e) => {
+                    if (e.candidate && e.candidate.type === 'srflx') {
+                        foundSrflx = true;
+                        log(`${stun} - Working! Public IP: ${e.candidate.address}`, 'success');
+                    }
+                };
+
+                try {
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    if (!foundSrflx) {
+                        log(`${stun} - No public IP found (may be blocked)`, 'warning');
+                    }
+                } catch (error) {
+                    log(`${stun} - Error: ${error.message}`, 'error');
+                }
+
+                pc.close();
+            }
+
+            showStatus('STUN test complete. Check log for details.', 'info');
+        }
+
+        async function testMedia() {
+            clearLog();
+            log('Testing camera and microphone access...', 'info');
+            showStatus('Requesting camera/microphone access...', 'info');
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+
+                log('Camera access: OK', 'success');
+                log('Microphone access: OK', 'success');
+
+                const videoTracks = stream.getVideoTracks();
+                const audioTracks = stream.getAudioTracks();
+
+                log(`Video track: ${videoTracks[0]?.label}`, 'info');
+                log(`Audio track: ${audioTracks[0]?.label}`, 'info');
+
+                showStatus('Success! Camera and microphone are accessible.', 'success');
+
+                stream.getTracks().forEach(track => track.stop());
+            } catch (error) {
+                log(`Media error: ${error.message}`, 'error');
+                showStatus(`Failed to access media devices: ${error.message}`, 'error');
+            }
+        }
+
+        log('WebRTC Connection Test Tool Ready', 'info');
+        log('Click a button above to start testing', 'info');
+    </script>
+</body>
+</html>
