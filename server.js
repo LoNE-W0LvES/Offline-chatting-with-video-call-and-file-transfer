@@ -14,6 +14,17 @@ const __dirname = dirname(__filename);
 const app = express();
 const PORT = 3001;
 
+// ==================== DEBUG CONFIGURATION ====================
+const DEBUG = false; // Set to false to disable console logs
+
+// Debug logging helper
+const debug = {
+    log: (...args) => DEBUG && console.log(...args),
+    error: (...args) => DEBUG && console.error(...args),
+    warn: (...args) => DEBUG && console.warn(...args),
+};
+// ==============================================================
+
 const uploadsDir = join(__dirname, 'uploads');
 const sharedFilesDir = join(__dirname, 'shared_files');
 const chatDir = join(__dirname, 'chat');
@@ -64,7 +75,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.use('/shared_files', express.static(sharedFilesDir));
 
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    debug.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
     next();
 });
 
@@ -99,7 +110,7 @@ setInterval(async () => {
 
         users = users.filter(user => {
             const inactive = now - user.timestamp > USER_TIMEOUT;
-            if (inactive) console.log('🗑️ Removing inactive user:', user.name);
+            if (inactive) debug.log('🗑️ Removing inactive user:', user.name);
             return !inactive;
         });
 
@@ -107,7 +118,7 @@ setInterval(async () => {
             await fs.writeFile(usersFile, JSON.stringify(users, null, 2));
         }
     } catch (error) {
-        console.error('Error cleaning up users:', error);
+        debug.error('Error cleaning up users:', error);
     }
 }, 60000);
 
@@ -240,6 +251,7 @@ app.post('/api/files/upload', upload.single('file'), async (req, res) => {
         filesMeta.push(fileMeta);
         await fs.writeFile(filesMetaFile, JSON.stringify(filesMeta, null, 2));
 
+        debug.log('✅ File uploaded:', req.file.filename);
         res.json({
             success: true,
             file: fileMeta
@@ -523,7 +535,7 @@ app.post('/api/calls', async (req, res) => {
     try {
         const { fromAccountId, toAccountId, fromName, toName, roomId, type, meetingTitle } = req.body;
 
-        console.log('📞 Creating call:', {
+        debug.log('📞 Creating call:', {
             fromAccountId,
             toAccountId,
             fromName,
@@ -537,9 +549,9 @@ app.post('/api/calls', async (req, res) => {
         try {
             const data = await fs.readFile(callsFile, 'utf-8');
             calls = JSON.parse(data);
-            console.log('📋 Existing calls before adding new one:', calls.length);
+            debug.log('📋 Existing calls before adding new one:', calls.length);
         } catch (err) {
-            console.log('⚠️  No existing calls file, creating new one');
+            debug.log('⚠️ No existing calls file, creating new one');
         }
 
         const newCall = {
@@ -557,47 +569,28 @@ app.post('/api/calls', async (req, res) => {
 
         calls.push(newCall);
 
-        // Write to file with error handling
         try {
             await fs.writeFile(callsFile, JSON.stringify(calls, null, 2));
-            console.log('✅ Call saved to file:', newCall.id);
-            console.log('📋 Total calls now:', calls.length);
+            debug.log('✅ Call saved to file:', newCall.id);
+            debug.log('📋 Total calls now:', calls.length);
 
-            // Verify the write was successful by reading back
             const verifyData = await fs.readFile(callsFile, 'utf-8');
             const verifyCalls = JSON.parse(verifyData);
-            console.log('✅ Verified calls in file:', verifyCalls.length);
+            debug.log('✅ Verified calls in file:', verifyCalls.length);
 
             if (!verifyCalls.find(c => c.id === newCall.id)) {
-                console.error('❌ WARNING: Call not found in file after write!');
+                debug.error('❌ WARNING: Call not found in file after write!');
             }
         } catch (writeError) {
-            console.error('❌ Failed to write/verify call:', writeError);
+            debug.error('❌ Failed to write/verify call:', writeError);
             throw writeError;
         }
 
         res.json({ success: true, call: newCall });
     } catch (error) {
-        console.error('❌ Error creating call:', error);
+        debug.error('❌ Error creating call:', error);
         res.status(500).json({ error: error.message });
     }
-});
-
-// ... (keep all other existing endpoints: users, signaling, etc.)
-
-app.post('/api/files/upload', upload.single('file'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    console.log('✅ File uploaded:', req.file.filename);
-    res.json({
-        message: 'File uploaded successfully',
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        path: `/uploads/${req.file.filename}`
-    });
 });
 
 app.get('/uploads/:filename', (req, res) => {
@@ -631,10 +624,10 @@ app.post('/api/users', async (req, res) => {
         users.push(userData);
 
         await fs.writeFile(usersFile, JSON.stringify(users, null, 2));
-        console.log('✅ User saved:', userData.name);
+        debug.log('✅ User saved:', userData.name);
         res.json({ success: true, user: userData });
     } catch (error) {
-        console.error('❌ Error saving user:', error);
+        debug.error('❌ Error saving user:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -649,7 +642,7 @@ app.get('/api/users', async (req, res) => {
         const now = Date.now();
         const activeUsers = users.filter(u => now - u.timestamp < USER_TIMEOUT);
 
-        console.log('📋 Users list requested:', activeUsers.length, 'active users');
+        debug.log('📋 Users list requested:', activeUsers.length, 'active users');
         res.json(activeUsers);
     } catch {
         res.json([]);
@@ -700,11 +693,11 @@ app.delete('/api/users/:id', async (req, res) => {
         await fs.writeFile(usersFile, JSON.stringify(users, null, 2));
 
         if (users.length < before) {
-            console.log('✅ User deleted:', id);
+            debug.log('✅ User deleted:', id);
         }
         res.json({ success: true });
     } catch (error) {
-        console.error('❌ Error deleting user:', error);
+        debug.error('❌ Error deleting user:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -732,16 +725,12 @@ app.put('/api/users/:id/heartbeat', async (req, res) => {
 
         res.json({ success: true });
     } catch (error) {
-        console.error('❌ Error updating heartbeat:', error);
+        debug.error('❌ Error updating heartbeat:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ Add this to your server.js to replace the existing signaling endpoints
-
-// ✅ Add this to your server.js to replace the existing signaling endpoints
-
-// Signaling endpoints - UPDATED
+// Signaling endpoints
 app.post('/api/signaling', (req, res) => {
     try {
         const message = req.body;
@@ -749,7 +738,7 @@ app.post('/api/signaling', (req, res) => {
         message.timestamp = Date.now();
         signalingMessages.push(message);
 
-        console.log(`📨 Signaling message #${message.id}:`, {
+        debug.log(`📨 Signaling message #${message.id}:`, {
             type: message.type,
             from: message.fromName,
             to: message.to || 'broadcast',
@@ -763,7 +752,7 @@ app.post('/api/signaling', (req, res) => {
 
         res.json({ success: true, id: message.id });
     } catch (error) {
-        console.error('❌ Error saving signaling message:', error);
+        debug.error('❌ Error saving signaling message:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -774,29 +763,22 @@ app.get('/api/signaling', (req, res) => {
         const peerId = req.query.peerId;
         const roomId = req.query.roomId;
 
-        // ✅ FIXED: Filter messages by room
         let messages = signalingMessages.filter(msg => {
-            // Message must be newer than lastId
             if (msg.id <= lastId) return false;
-
-            // If in a room, only get messages from that room
             if (roomId) {
                 if (msg.roomId !== roomId) return false;
             }
-
-            // Message must be broadcast OR directed to this peer
             if (msg.to && msg.to !== peerId) return false;
-
             return true;
         });
 
         if (messages.length > 0) {
-            console.log(`📤 Sending ${messages.length} messages to peer ${peerId} in room ${roomId || 'global'}`);
+            debug.log(`📤 Sending ${messages.length} messages to peer ${peerId} in room ${roomId || 'global'}`);
         }
 
         res.json(messages);
     } catch (error) {
-        console.error('❌ Error fetching signaling messages:', error);
+        debug.error('❌ Error fetching signaling messages:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -809,45 +791,41 @@ app.get('/api/signaling/debug', (req, res) => {
         messageIdCounter
     });
 });
-// Copy all the remaining endpoints from your original server.js here
-// (users, signaling, heartbeat, etc.)
 
-// Add this to your server.js after the existing calls endpoint
-
-// ✅ GET calls for a specific user
+// GET calls for a specific user
 app.get('/api/calls', async (req, res) => {
     try {
         const { toAccountId } = req.query;
 
-        console.log('🔍 GET /api/calls - toAccountId:', toAccountId);
+        debug.log('🔍 GET /api/calls - toAccountId:', toAccountId);
 
         let calls = [];
         try {
             const data = await fs.readFile(callsFile, 'utf-8');
             calls = JSON.parse(data);
-            console.log('📋 Read calls from file:', calls.length, 'total calls');
-            console.log('📋 Raw calls data:', JSON.stringify(calls, null, 2));
+            debug.log('📋 Read calls from file:', calls.length, 'total calls');
+            debug.log('📋 Raw calls data:', JSON.stringify(calls, null, 2));
         } catch (err) {
-            console.log('⚠️  No calls file or empty:', err.message);
+            debug.log('⚠️ No calls file or empty:', err.message);
         }
 
         if (toAccountId) {
             const beforeFilter = calls.length;
             calls = calls.filter(call => call.toAccountId === toAccountId);
-            console.log('📞 Filtered calls for user', toAccountId, ':', calls.length, 'calls (before:', beforeFilter, ')');
+            debug.log('📞 Filtered calls for user', toAccountId, ':', calls.length, 'calls (before:', beforeFilter, ')');
             if (calls.length > 0) {
-                console.log('📞 Returning calls:', JSON.stringify(calls, null, 2));
+                debug.log('📞 Returning calls:', JSON.stringify(calls, null, 2));
             }
         }
 
         res.json(calls);
     } catch (error) {
-        console.error('❌ Error getting calls:', error);
+        debug.error('❌ Error getting calls:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ✅ Update call status (accept/reject/ended)
+// Update call status (accept/reject/ended)
 app.patch('/api/calls/:callId', async (req, res) => {
     try {
         const { callId } = req.params;
@@ -878,7 +856,7 @@ app.patch('/api/calls/:callId', async (req, res) => {
     }
 });
 
-// ✅ Delete old calls (cleanup)
+// Delete old calls (cleanup)
 app.delete('/api/calls/:callId', async (req, res) => {
     try {
         const { callId } = req.params;
@@ -898,7 +876,7 @@ app.delete('/api/calls/:callId', async (req, res) => {
     }
 });
 
-// ✅ Cleanup old calls automatically (run every minute)
+// Cleanup old calls automatically (run every minute)
 setInterval(async () => {
     try {
         const data = await fs.readFile(callsFile, 'utf-8');
@@ -914,10 +892,10 @@ setInterval(async () => {
 
         if (calls.length !== before) {
             await fs.writeFile(callsFile, JSON.stringify(calls, null, 2));
-            console.log(`🧹 Cleaned up ${before - calls.length} old calls (kept ${calls.length})`);
+            debug.log(`🧹 Cleaned up ${before - calls.length} old calls (kept ${calls.length})`);
         }
     } catch (error) {
-        console.error('Error cleaning up calls:', error);
+        debug.error('Error cleaning up calls:', error);
     }
 }, 60000); // Every minute
 
@@ -936,21 +914,23 @@ async function startServer() {
             cert: readFileSync(certPath)
         };
         useHttps = true;
-        console.log('🔒 SSL certificates found - using HTTPS');
+        debug.log('🔒 SSL certificates found - using HTTPS');
     } catch (error) {
-        console.log('⚠️  SSL certificates not found - using HTTP');
+        debug.log('⚠️ SSL certificates not found - using HTTP');
     }
 
     if (useHttps && httpsOptions) {
         https.createServer(httpsOptions, app).listen(PORT, '0.0.0.0', () => {
             console.log('🚀 HTTPS Server running on https://0.0.0.0:' + PORT);
             console.log('📡 Access from other devices: https://YOUR_IP:' + PORT);
+            console.log(`🐛 Debug mode: ${DEBUG ? 'ENABLED' : 'DISABLED'}`);
         });
     } else {
         http.createServer(app).listen(PORT, () => {
             console.log('🚀 HTTP Server running on http://localhost:' + PORT);
             console.log('📁 File tracking enabled');
             console.log('💬 Messaging system ready');
+            console.log(`🐛 Debug mode: ${DEBUG ? 'ENABLED' : 'DISABLED'}`);
         });
     }
 }

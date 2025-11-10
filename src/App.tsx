@@ -19,6 +19,19 @@ export interface Account {
     fullName: string;
 }
 
+interface Call {
+    id: string;
+    fromAccountId: string;
+    toAccountId: string;
+    fromName: string;
+    toName: string;
+    roomId: string;
+    status: string;
+    type?: 'call' | 'meeting';
+    meetingTitle?: string;
+    createdAt: number;
+}
+
 interface IncomingCall {
     id: string;
     fromAccountId: string;
@@ -48,11 +61,118 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
     const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [audioEnabled, setAudioEnabled] = useState(false);
     const [callRingtone] = useState(() => {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBTGH0fPTgjMGHm7A7+OZSA0PVazo7q5aFgxMouLzwHEgBSl+zPLaizsIGGS57OihUBELTKXh8bllHAU2jdXzzn0pBSh2yO/ekTsJE1y06+ujVxYNSaTi8r90IAUscsjw24k4BxlrvezmolARDUqk4fK8aR0GNIvU8tGAKwceb8Hv45xMEA5Up+ftrVoXDEmi4/LAciAFK4HO8tiJOQcZaLvt6KFREQxLpePyvmwdBjaP1fPRgSsHHm/B7+OcTBEOVKjn7axaGAxKo+Pyw3IgBSyCzvLYiTgHGWi77eijUhENS6Xj8r5sHAY3kNbz0X8rBx5vwe/jnEwQDlSo5+2sWhcMSqPj8sNyHwUsgc7y2Ik4Bxlou+3oo1IRDUul4/K+bBwGN5DW89F/KwceacHu45xMEA5Sp+ftrFoYDEmk4/LDcx8FLYPPe/nGOw=');
-        audio.loop = true;
-        audio.volume = 0.5;
-        return audio;
+        // Create a more reliable ringtone using Web Audio API oscillator
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        let audioContext: AudioContext | null = null;
+        let oscillator: OscillatorNode | null = null;
+        let gainNode: GainNode | null = null;
+        let isPlaying = false;
+        let restartTimeout: NodeJS.Timeout | null = null;
+        let isInitialized = false;
+
+        // Initialize audio context on first user interaction
+        const initAudioContext = () => {
+            if (!isInitialized) {
+                audioContext = new AudioContextClass();
+                isInitialized = true;
+                console.log('✅ AudioContext initialized on user interaction');
+            }
+        };
+
+        // Add listeners to initialize on first interaction
+        const events = ['click', 'touchstart', 'keydown'];
+        events.forEach(event => {
+            document.addEventListener(event, initAudioContext, { once: true, passive: true });
+        });
+
+        const ringtone = {
+            play: async () => {
+                if (isPlaying) return;
+
+                // Ensure audio context is initialized
+                if (!audioContext) {
+                    initAudioContext();
+                }
+
+                if (!audioContext) {
+                    console.warn('AudioContext not available yet');
+                    return;
+                }
+
+                try {
+                    // Resume audio context if suspended (required by browsers)
+                    if (audioContext.state === 'suspended') {
+                        await audioContext.resume();
+                        console.log('🔊 AudioContext resumed');
+                    }
+
+                    oscillator = audioContext.createOscillator();
+                    gainNode = audioContext.createGain();
+
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+
+                    // Create a pleasant ringtone sound
+                    oscillator.type = 'sine';
+                    oscillator.frequency.value = 800;
+                    gainNode.gain.value = 0.3;
+
+                    // Create a ringing pattern
+                    const now = audioContext.currentTime;
+                    const ringDuration = 0.4;
+                    const silenceDuration = 0.4;
+                    const patternDuration = ringDuration + silenceDuration;
+
+                    // Schedule multiple rings
+                    for (let i = 0; i < 10; i++) {
+                        const startTime = now + (i * patternDuration);
+                        gainNode.gain.setValueAtTime(0.3, startTime);
+                        gainNode.gain.setValueAtTime(0, startTime + ringDuration);
+                    }
+
+                    oscillator.start(now);
+                    isPlaying = true;
+                    console.log('🔔 Ringtone started playing');
+
+                    // Restart after pattern completes
+                    restartTimeout = setTimeout(() => {
+                        if (isPlaying) {
+                            ringtone.pause();
+                            ringtone.play();
+                        }
+                    }, patternDuration * 10 * 1000);
+                } catch (error) {
+                    console.error('Failed to play ringtone:', error);
+                }
+            },
+            pause: () => {
+                if (restartTimeout) {
+                    clearTimeout(restartTimeout);
+                    restartTimeout = null;
+                }
+                if (oscillator && isPlaying) {
+                    try {
+                        oscillator.stop();
+                    } catch (e) {
+                        // Oscillator might already be stopped
+                    }
+                    oscillator = null;
+                    gainNode = null;
+                    isPlaying = false;
+                    console.log('🔇 Ringtone stopped');
+                }
+            },
+            get currentTime() {
+                return 0;
+            },
+            set currentTime(_value: number) {
+                // No-op for compatibility with Audio API
+            }
+        };
+
+        return ringtone;
     });
 
     useEffect(() => {
@@ -111,8 +231,8 @@ function App() {
                 const url = `${API_URL}/api/calls?toAccountId=${account.id}`;
                 const response = await fetch(url);
                 if (response.ok) {
-                    const calls = await response.json();
-                    const ringingCalls = calls.filter((call: any) => call.status === 'ringing');
+                    const calls: Call[] = await response.json();
+                    const ringingCalls = calls.filter((call) => call.status === 'ringing');
 
                     if (ringingCalls.length > 0) {
                         const latestCall = ringingCalls[0];
@@ -167,6 +287,23 @@ function App() {
                 console.log('Notification permission:', permission);
             });
         }
+
+        // Enable audio on first user interaction (required by browsers)
+        const enableAudio = () => {
+            setAudioEnabled(true);
+            console.log('✅ Audio enabled on user interaction');
+        };
+
+        const events = ['click', 'touchstart', 'keydown'];
+        events.forEach(event => {
+            document.addEventListener(event, enableAudio, { once: true });
+        });
+
+        return () => {
+            events.forEach(event => {
+                document.removeEventListener(event, enableAudio);
+            });
+        };
     }, []);
 
     const handleLogin = async (username: string, password: string) => {
@@ -526,6 +663,12 @@ function App() {
     if (account) {
         return (
             <>
+                {!audioEnabled && (
+                    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2">
+                        <div className="animate-pulse">🔔</div>
+                        <span className="font-medium">Click anywhere to enable call notifications</span>
+                    </div>
+                )}
                 <HomePage
                     account={account}
                     onLogout={handleLogout}
