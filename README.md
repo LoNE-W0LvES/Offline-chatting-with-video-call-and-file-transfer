@@ -46,7 +46,7 @@ A comprehensive real-time collaboration platform designed for local network comm
 
 ### 💬 Messaging System
 - **Direct Messages**: One-on-one private messaging
-- **Global Chatroom**: Public chat visible to all users
+- **Global Chatroom**: Public chat visible to all users (accessible from home page)
 - **Real-time Updates**: Messages appear instantly (1-second polling)
 - **Message History**: Persistent message storage
 - **Read Receipts**: Track message read status
@@ -92,6 +92,8 @@ Before you begin, ensure you have the following installed:
 
 - **Web Browser**: Modern browser with WebRTC support
   - Chrome 90+, Firefox 88+, Edge 90+, or Safari 14+
+
+- **Administrator Access**: Required for HTTP redirect server (port 80)
 
 ---
 
@@ -173,9 +175,9 @@ VITE_API_URL=https://192.168.1.100:3001
 ### 3. Firewall Configuration
 
 Ensure these ports are open on your firewall:
-- **Port 80**: HTTP redirect server (optional, for easy access)
-- **Port 3001**: Backend API server
-- **Port 5173**: Frontend development server
+- **Port 80**: HTTP redirect server (requires admin privileges)
+- **Port 3001**: Backend API server (HTTPS)
+- **Port 5173**: Frontend development server (HTTPS)
 
 #### Windows Firewall:
 1. Open "Windows Defender Firewall"
@@ -189,109 +191,30 @@ sudo ufw allow 3001
 sudo ufw allow 5173
 ```
 
-### 4. Router Configuration (Recommended for Stability)
-
-#### Why IP Reservation is Important:
-
-When your computer connects to a router, it typically receives a **dynamic IP address** via DHCP (Dynamic Host Configuration Protocol). This means:
-
-❌ **Without IP Reservation:**
-- Your IP address can change when you restart your computer
-- The IP might change when the DHCP lease expires (usually 24 hours)
-- Other devices might get your IP if they connect first
-- Your `.env` file will have the wrong IP after a change
-- All devices will need to use the new IP to connect
-
-✅ **With IP Reservation (Static DHCP):**
-- Your computer always gets the same IP address
-- The `.env` file stays correct permanently
-- Other users can bookmark/save your IP address
-- More reliable for server hosting
-- No need to reconfigure after restarts
-
-#### How to Set Up IP Reservation:
-
-**Step 1: Find Your MAC Address**
-
-Windows:
-```bash
-ipconfig /all
-```
-Look for "Physical Address" - Example: `A1-B2-C3-D4-E5-F6`
-
-Linux/Mac:
-```bash
-ifconfig
-# or
-ip link show
-```
-Look for "ether" or "HWaddr" - Example: `a1:b2:c3:d4:e5:f6`
-
-**Step 2: Access Your Router Settings**
-
-1. Open browser and go to your router's IP (usually one of these):
-   - `http://192.168.1.1`
-   - `http://192.168.0.1`
-   - `http://192.168.3.1`
-   - `http://10.0.0.1`
-
-2. Login with router admin credentials (check router label or manual)
-
-**Step 3: Configure DHCP Reservation**
-
-Different routers have different interfaces. Look for:
-- **"DHCP Reservation"** or **"Static DHCP"**
-- **"Address Reservation"** or **"Reserved IP"**
-- **"IP & MAC Binding"** or **"MAC Address Filtering"**
-
-Common Router Brands:
-- **TP-Link**: Advanced → Network → DHCP Server → Address Reservation
-- **Netgear**: Advanced → Setup → LAN Setup → Address Reservation
-- **Asus**: LAN → DHCP Server → Manual Assignment
-- **Linksys**: Connectivity → Local Network → DHCP Reservation
-
-**Step 4: Add Reservation**
-
-1. Click "Add" or "+" to create a new reservation
-2. Enter your computer's MAC address
-3. Enter the desired IP address (e.g., `192.168.3.2`)
-4. Save and apply settings
-
-**Step 5: Verify**
-
-1. Restart your computer
-2. Run `ipconfig` (Windows) or `ifconfig` (Linux/Mac)
-3. Confirm you received the reserved IP address
-
-#### Example Router Configuration:
-
-```
-Device Name: LAN-Collab-Server
-MAC Address: A1:B2:C3:D4:E5:F6
-Reserved IP: 192.168.3.2
-Status: Enabled
-```
-
-Now your computer will **always** have IP `192.168.3.2`, making your collaboration suite permanently accessible at that address!
-
 ---
 
 ## 🎬 Running the Application
 
 ### Option 1: Automated Startup (Windows - Recommended)
 
-Double-click `start_all.bat` or run:
+**Right-click** `start_all.bat` and select **"Run as administrator"** or simply double-click it:
 
 ```bash
 start_all.bat
 ```
 
 This will:
-- Detect your local IP address
+- Request administrator privileges (needed for port 80)
+- Detect your local IP address automatically
 - Create/update the `.env` file
 - Install dependencies (if needed)
-- Start both backend and frontend servers
-- Open two command windows (keep both open)
+- Start three servers simultaneously:
+  - Backend API server (port 3001)
+  - Frontend dev server (port 5173)
+  - HTTP redirect server (port 80)
+- Open three command windows (keep all open)
+
+**Note**: Administrator privileges are required because the HTTP redirect server uses port 80, which is a privileged port on Windows.
 
 ### Option 2: Manual Startup
 
@@ -309,37 +232,33 @@ npm run dev
 
 Frontend will run on `https://localhost:5173`
 
-#### Terminal 3 - HTTP Redirect Server (Optional but Recommended):
+#### Terminal 3 - HTTP Redirect Server (requires admin):
 ```bash
-node redirect-server.js
+npm run redirect
 ```
 
-**Note for Windows**: Port 80 requires administrator privileges. Run Command Prompt as Administrator:
-1. Search "Command Prompt" or "cmd"
-2. Right-click → "Run as administrator"
-3. Navigate to project folder: `cd path\to\your\project`
-4. Run: `node redirect-server.js`
-
-**Note for Linux/Mac**:
-```bash
-sudo node redirect-server.js
-```
-
-This allows users to access the app without typing the port number!
+Redirect server will run on `http://localhost:80`
 
 ### Accessing the Application
 
-**With HTTP Redirect Server (Recommended):**
-- **From any device**: `http://YOUR_LOCAL_IP` (e.g., `http://192.168.3.2`)
-- Automatically redirects to `https://YOUR_LOCAL_IP:5173`
-- No need to remember port numbers! 🎯
+#### From the Same Computer:
+- **HTTPS (direct)**: `https://localhost:5173`
+- **HTTP (redirects to HTTPS)**: `http://localhost`
 
-**Without HTTP Redirect Server:**
-- **From the same computer**: `https://localhost:5173`
-- **From other devices**: `https://YOUR_LOCAL_IP:5173`
-  - Example: `https://192.168.3.2:5173`
+#### From Other Devices on the Network:
+- **HTTPS (direct)**: `https://YOUR_LOCAL_IP:5173`
+  - Example: `https://192.168.1.100:5173`
+- **HTTP (easier, redirects)**: `http://YOUR_LOCAL_IP`
+  - Example: `http://192.168.1.100`
+  - This is the recommended option for other users - no port number needed!
 
 **⚠️ Important**: You'll see a security warning because of self-signed certificates. Click "Advanced" → "Proceed anyway" (this is safe on your local network).
+
+### Understanding the Three Servers
+
+1. **Backend Server (port 3001)**: Handles API requests, file storage, user management
+2. **Frontend Server (port 5173)**: Serves the React application with hot-reload
+3. **HTTP Redirect Server (port 80)**: Automatically redirects HTTP traffic to HTTPS for convenience
 
 ---
 
@@ -398,9 +317,10 @@ This allows users to access the app without typing the port number!
    - Type and send messages
 
 2. **Global Chat**
-   - Available on the home page sidebar
-   - Visible to all online users
-   - Real-time message updates
+   - Click "Global Chat" card on the home page
+   - Chat is visible to all users on the network
+   - Real-time message updates every second
+   - Messages persist across sessions
 
 ### File Sharing
 
@@ -410,9 +330,9 @@ This allows users to access the app without typing the port number!
    - Download files from others
 
 2. **Private File Sharing**
-   - Go to "View Users"
-   - Click "Send File" next to a user
-   - File is shared privately with that user
+   - Go to "Shared with Me" on home page
+   - View files shared privately with you
+   - Send files to specific users
 
 3. **Meeting File Sharing**
    - In a meeting room, use the "Files" tab
@@ -438,7 +358,6 @@ lan-collaboration-suite/
 │   │   ├── Chat.tsx         # Chat interface
 │   │   ├── Controls.tsx     # Meeting controls
 │   │   ├── FileTransfer.tsx # File sharing UI
-│   │   ├── GlobalChat.tsx   # Global chatroom
 │   │   ├── MeetingInvitation.tsx
 │   │   ├── NotificationCenter.tsx
 │   │   ├── PeerList.tsx     # Connected peers list
@@ -451,6 +370,7 @@ lan-collaboration-suite/
 │   │   ├── MeetingRoom.tsx  # Video call interface
 │   │   ├── UsersPage.tsx    # User directory
 │   │   ├── MessagesPage.tsx # Direct messaging
+│   │   ├── GlobalChatPage.tsx # Global chatroom
 │   │   ├── FileServerPage.tsx
 │   │   └── SharedWithMePage.tsx
 │   │
@@ -472,6 +392,7 @@ lan-collaboration-suite/
 ├── notifications/           # Notification storage (auto-created)
 │
 ├── server.js                # Express backend server
+├── redirect-server.js       # HTTP to HTTPS redirect server
 ├── accounts.json            # User accounts (auto-created)
 ├── users.json               # Active users (auto-created)
 ├── calls.json               # Call records (auto-created)
@@ -489,7 +410,7 @@ lan-collaboration-suite/
 
 ---
 
-## 🔌 API Endpoints
+## 📌 API Endpoints
 
 ### Authentication
 - `POST /api/auth/signup` - Create new account
@@ -536,6 +457,17 @@ lan-collaboration-suite/
 
 ## 🔧 Troubleshooting
 
+### HTTP Redirect Server Won't Start
+
+**Issue**: Port 80 access denied or redirect server fails
+
+**Solution**:
+1. Run `start_all.bat` as Administrator (right-click → "Run as administrator")
+2. Port 80 requires admin privileges on Windows
+3. Check if another application is using port 80 (IIS, Apache, etc.)
+4. Temporarily disable other web servers running on port 80
+5. If still failing, users can access directly via `https://YOUR_IP:5173`
+
 ### Camera/Microphone Not Working
 
 **Issue**: Browser doesn't request permissions
@@ -544,6 +476,7 @@ lan-collaboration-suite/
 1. Ensure you're using HTTPS (not HTTP)
 2. Check browser permissions: Settings → Privacy → Camera/Microphone
 3. Try a different browser (Chrome recommended)
+4. Accept the self-signed certificate warning first
 
 ### Can't Connect from Other Devices
 
@@ -554,43 +487,7 @@ lan-collaboration-suite/
 2. Check firewall settings (ports 80, 3001, 5173)
 3. Confirm IP address in `.env` is correct
 4. Try disabling Windows Firewall temporarily for testing
-5. **Check IP reservation**: If IP changed, update `.env` file
-
-### Port 80 Access Denied
-
-**Issue**: "Permission denied" or "EACCES" error when starting redirect server
-
-**Solution**:
-- **Windows**: Run Command Prompt as Administrator
-  1. Search "cmd" in Start menu
-  2. Right-click → "Run as administrator"
-  3. Navigate to project: `cd C:\path\to\project`
-  4. Run: `node redirect-server.js`
-
-- **Linux/Mac**: Use sudo
-  ```bash
-  sudo node redirect-server.js
-  ```
-
-### Port 80 Already in Use
-
-**Issue**: Another service is using port 80
-
-**Solution**:
-1. Check what's using port 80:
-   - **Windows**: `netstat -ano | findstr :80`
-   - **Linux/Mac**: `sudo lsof -i :80`
-2. Stop the conflicting service (often IIS, Apache, or Nginx)
-3. Or skip the redirect server and use port 5173 directly
-
-### IP Address Keeps Changing
-
-**Issue**: The IP address changes and app becomes inaccessible
-
-**Solution**:
-- Set up **DHCP Reservation** in your router (see Configuration section)
-- This binds your MAC address to a permanent IP
-- Your computer will always get the same IP address
+5. Use HTTP redirect: `http://YOUR_IP` (easier than HTTPS)
 
 ### SSL Certificate Warning
 
@@ -600,6 +497,7 @@ lan-collaboration-suite/
 - This is normal with self-signed certificates
 - Click "Advanced" → "Proceed" (safe on local network)
 - Alternatively, install the certificate in your system's trust store
+- Use HTTP redirect for easier access (it handles the redirect)
 
 ### Files Not Uploading
 
@@ -627,10 +525,22 @@ lan-collaboration-suite/
 **Issue**: Frontend can't reach backend
 
 **Solution**:
-1. Ensure server is running: `npm run server`
+1. Ensure all three servers are running (check the three windows)
 2. Verify `.env` file has correct API URL
 3. Check if port 3001 is blocked
 4. Try accessing `https://localhost:3001/api/users` directly
+5. Restart all servers using `start_all.bat`
+
+### Global Chat Not Loading
+
+**Issue**: Can't access or send messages in Global Chat
+
+**Solution**:
+1. Ensure backend server is running (port 3001)
+2. Click the "Global Chat" card on the home page (not sidebar)
+3. Check browser console for errors
+4. Verify `/chat` directory exists and is writable
+5. Try refreshing the page
 
 ---
 
@@ -648,6 +558,7 @@ lan-collaboration-suite/
 - **Express 4.18.2** - Web server framework
 - **Multer 1.4.5** - File upload handling
 - **CORS 2.8.5** - Cross-origin requests
+- **HTTPS/TLS** - Secure connections
 
 ### Real-Time Communication
 - **WebRTC** - Peer-to-peer video/audio/data
@@ -667,7 +578,7 @@ lan-collaboration-suite/
 
 ---
 
-## 📝 Available Scripts
+## 📜 Available Scripts
 
 ```bash
 # Start development server (frontend)
@@ -676,8 +587,8 @@ npm run dev
 # Start backend server
 npm run server
 
-# Start HTTP redirect server (requires admin/sudo)
-node redirect-server.js
+# Start HTTP redirect server
+npm run redirect
 
 # Build for production
 npm run build
@@ -694,64 +605,9 @@ npm run lint
 # Clear active users (maintenance)
 npm run clear-users
 
-# Start both servers (Windows)
+# Start all servers (Windows - requires admin)
 start_all.bat
 ```
-
----
-
-## 🌐 HTTP Redirect Server
-
-The `redirect-server.js` allows users to access your app without remembering port numbers!
-
-### What It Does:
-- Runs on **Port 80** (standard HTTP port)
-- Automatically redirects `http://YOUR_IP` → `https://YOUR_IP:5173`
-- Makes sharing easier: Just say "go to http://192.168.3.2" instead of "go to https://192.168.3.2:5173"
-
-### Setup:
-
-**1. Create `redirect-server.js`:**
-
-The file is already included in your project. It contains:
-```javascript
-import http from 'http';
-
-const HTTP_PORT = 80;
-const HTTPS_PORT = 5173;
-
-const server = http.createServer((req, res) => {
-    const host = req.headers.host?.split(':')[0] || 'localhost';
-    const redirectUrl = `https://${host}:${HTTPS_PORT}${req.url}`;
-    
-    res.writeHead(301, { 'Location': redirectUrl });
-    res.end();
-});
-
-server.listen(HTTP_PORT, '0.0.0.0');
-```
-
-**2. Run with Admin/Sudo Privileges:**
-
-Windows (Run Command Prompt as Administrator):
-```bash
-node redirect-server.js
-```
-
-Linux/Mac:
-```bash
-sudo node redirect-server.js
-```
-
-**3. Test It:**
-- Open browser: `http://YOUR_LOCAL_IP` (no port!)
-- Should redirect to: `https://YOUR_LOCAL_IP:5173`
-
-### Benefits:
-✅ Easier to share with others
-✅ No need to remember port numbers
-✅ Professional appearance
-✅ Works like a real website
 
 ---
 
@@ -801,9 +657,11 @@ Potential features for future versions:
 - Better NAT traversal (TURN servers)
 - Database integration (MongoDB/PostgreSQL)
 - User profiles with avatars
-- Group chat rooms
+- Group chat rooms (separate from global)
 - File preview before download
 - Drag-and-drop file uploads
+- Voice-only calls option
+- Meeting scheduling
 
 ---
 
