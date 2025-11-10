@@ -1,0 +1,52 @@
+
+> vite-react-typescript-starter@0.0.0 server
+> node server.js
+
+🔒 SSL certificates found - using HTTPS
+🚀 HTTPS Server running on https://localhost:3001
+📁 File tracking enabled
+💬 Messaging system ready
+2025-11-10T03:36:21.176Z - POST /api/calls
+📞 Creating call: {
+  fromAccountId: 'acc-1762709824713-bjdg5z6tm',
+  toAccountId: 'acc-1762709791512-n6axj0ino',
+  fromName: 'nafiX',
+  toName: 'Nafi',
+  roomId: 'test-room-789',
+  type: undefined,
+  meetingTitle: undefined
+}
+📋 Existing calls before adding new one: 0
+✅ Call saved to file: call-1762745781178-lc5rbch1u
+📋 Total calls now: 1
+✅ Verified calls in file: 1
+2025-11-10T03:36:26.204Z - GET /api/calls
+🔍 GET /api/calls - toAccountId: acc-1762709791512-n6axj0ino
+📋 Read calls from file: 1 total calls
+📋 Raw calls data: [
+  {
+    "id": "call-1762745781178-lc5rbch1u",
+    "fromAccountId": "acc-1762709824713-bjdg5z6tm",
+    "toAccountId": "acc-1762709791512-n6axj0ino",
+    "fromName": "nafiX",
+    "toName": "Nafi",
+    "roomId": "test-room-789",
+    "status": "ringing",
+    "type": "call",
+    "createdAt": 1762745781178
+  }
+]
+📞 Filtered calls for user acc-1762709791512-n6axj0ino : 1 calls (before: 1 )
+📞 Returning calls: [
+  {
+    "id": "call-1762745781178-lc5rbch1u",
+    "fromAccountId": "acc-1762709824713-bjdg5z6tm",
+    "toAccountId": "acc-1762709791512-n6axj0ino",
+    "fromName": "nafiX",
+    "toName": "Nafi",
+    "roomId": "test-room-789",
+    "status": "ringing",
+    "type": "call",
+    "createdAt": 1762745781178
+  }
+]

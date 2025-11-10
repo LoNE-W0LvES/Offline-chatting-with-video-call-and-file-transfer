@@ -1,0 +1,12 @@
+node_modules/
+.env
+users.json
+calls.json
+files_meta.json
+accounts.json
+chat/
+shared_files/
+uploads/
+notifications/
+test-discovery.html
+test.html
