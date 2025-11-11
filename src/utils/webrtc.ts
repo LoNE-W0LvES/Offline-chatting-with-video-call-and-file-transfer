@@ -4,6 +4,7 @@ export interface Peer {
     connection: RTCPeerConnection;
     dataChannel?: RTCDataChannel;
     stream?: MediaStream;
+    screenStream?: MediaStream;
 }
 
 export interface Message {
@@ -29,6 +30,7 @@ export class WebRTCManager {
     private localPeerName: string;
     private peers: Map<string, Peer> = new Map();
     private localStream: MediaStream | null = null;
+    private localScreenStream: MediaStream | null = null;
     private onPeerUpdate?: (peers: Peer[]) => void;
     private onMessage?: (message: Message) => void;
     private onFileTransfer?: (transfer: FileTransfer) => void;
@@ -87,6 +89,70 @@ export class WebRTCManager {
         }
     }
 
+    async startScreenShare(): Promise<MediaStream> {
+        try {
+            const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    cursor: 'always',
+                    displaySurface: 'monitor'
+                } as MediaTrackConstraints,
+                audio: false
+            });
+
+            this.localScreenStream = screenStream;
+            console.log('🖥️ Screen share started');
+
+            // Replace video track in all peer connections
+            const videoTrack = screenStream.getVideoTracks()[0];
+
+            this.peers.forEach(peer => {
+                const sender = peer.connection.getSenders().find(s => s.track?.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(videoTrack);
+                    console.log(`✅ Replaced video track with screen share for ${peer.name}`);
+                }
+            });
+
+            // Listen for screen share stop
+            videoTrack.onended = () => {
+                console.log('🖥️ Screen share stopped');
+                this.stopScreenShare();
+            };
+
+            return screenStream;
+        } catch (error) {
+            console.error('❌ Failed to start screen share:', error);
+            throw error;
+        }
+    }
+
+    async stopScreenShare(): Promise<void> {
+        if (!this.localScreenStream) return;
+
+        // Stop all screen share tracks
+        this.localScreenStream.getTracks().forEach(track => track.stop());
+        this.localScreenStream = null;
+
+        // Restore original camera video track
+        if (this.localStream) {
+            const videoTrack = this.localStream.getVideoTracks()[0];
+
+            this.peers.forEach(peer => {
+                const sender = peer.connection.getSenders().find(s => s.track?.kind === 'video');
+                if (sender && videoTrack) {
+                    sender.replaceTrack(videoTrack);
+                    console.log(`✅ Restored camera video for ${peer.name}`);
+                }
+            });
+        }
+
+        console.log('✅ Screen share stopped');
+    }
+
+    isScreenSharing(): boolean {
+        return this.localScreenStream !== null;
+    }
+
     async createPeerConnection(peerId: string, peerName: string): Promise<RTCPeerConnection> {
         console.log('🔗 Creating peer connection for:', peerName);
 
@@ -103,11 +169,12 @@ export class WebRTCManager {
 
         const connection = new RTCPeerConnection(config);
 
-        // Add local stream tracks if available
-        if (this.localStream) {
-            console.log(`🎵 Adding ${this.localStream.getTracks().length} tracks to new peer connection with ${peerName}`);
-            this.localStream.getTracks().forEach(track => {
-                connection.addTrack(track, this.localStream!);
+        // Add local stream tracks if available (camera or screen share)
+        const streamToAdd = this.localScreenStream || this.localStream;
+        if (streamToAdd) {
+            console.log(`🎵 Adding ${streamToAdd.getTracks().length} tracks to new peer connection with ${peerName}`);
+            streamToAdd.getTracks().forEach(track => {
+                connection.addTrack(track, streamToAdd!);
                 console.log(`  ✅ Added ${track.kind} track (enabled: ${track.enabled})`);
             });
         } else {
@@ -299,6 +366,11 @@ export class WebRTCManager {
             peer.connection.close();
         });
         this.peers.clear();
+
+        if (this.localScreenStream) {
+            this.localScreenStream.getTracks().forEach(track => track.stop());
+            this.localScreenStream = null;
+        }
 
         if (this.localStream) {
             this.localStream.getTracks().forEach(track => track.stop());

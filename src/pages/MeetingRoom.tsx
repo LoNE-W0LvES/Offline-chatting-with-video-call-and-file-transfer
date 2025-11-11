@@ -28,10 +28,13 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
         localStream,
         isAudioEnabled,
         isVideoEnabled,
+        isScreenSharing,
         sendMessage,
         sendFile,
         toggleAudio,
         toggleVideo,
+        startScreenShare,
+        stopScreenShare,
         localPeerId,
         localPeerName,
     } = useLocalNetwork(account.fullName, roomId);
@@ -134,6 +137,12 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
                                 )}
                             </button>
                         </div>
+                        {isScreenSharing && (
+                            <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded-lg">
+                                <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+                                <span className="text-sm font-medium text-blue-700">Sharing Screen</span>
+                            </div>
+                        )}
                         <button
                             onClick={handleLeave}
                             className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
@@ -161,8 +170,11 @@ export function MeetingRoom({ account, roomId, onLeave }: MeetingRoomProps) {
                     <Controls
                         isAudioEnabled={isAudioEnabled}
                         isVideoEnabled={isVideoEnabled}
+                        isScreenSharing={isScreenSharing}
                         onToggleAudio={toggleAudio}
                         onToggleVideo={toggleVideo}
+                        onStartScreenShare={startScreenShare}
+                        onStopScreenShare={stopScreenShare}
                         activeTab={activeTab}
                         onTabChange={setActiveTab}
                     />

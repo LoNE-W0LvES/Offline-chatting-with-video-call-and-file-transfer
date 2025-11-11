@@ -15,6 +15,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [isAudioEnabled, setIsAudioEnabled] = useState(true);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
 
     useEffect(() => {
         if (!userName) {
@@ -354,6 +355,38 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         }
     }, []);
 
+    const startScreenShare = useCallback(async () => {
+        if (!webrtcRef.current) return;
+
+        try {
+            console.log('🖥️ Starting screen share...');
+            const screenStream = await webrtcRef.current.startScreenShare();
+            setLocalStream(screenStream);
+            setIsScreenSharing(true);
+            console.log('✅ Screen share started successfully');
+        } catch (error) {
+            console.error('❌ Failed to start screen share:', error);
+            throw error;
+        }
+    }, []);
+
+    const stopScreenShare = useCallback(async () => {
+        if (!webrtcRef.current) return;
+
+        try {
+            console.log('🖥️ Stopping screen share...');
+            await webrtcRef.current.stopScreenShare();
+
+            // Get the camera stream back
+            const cameraStream = await webrtcRef.current.initLocalStream(true, true);
+            setLocalStream(cameraStream);
+            setIsScreenSharing(false);
+            console.log('✅ Screen share stopped, camera restored');
+        } catch (error) {
+            console.error('❌ Failed to stop screen share:', error);
+        }
+    }, []);
+
     const sendMessage = useCallback((content: string) => {
         if (!webrtcRef.current) return;
         webrtcRef.current.sendMessage(content);
@@ -410,7 +443,10 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         localStream,
         isAudioEnabled,
         isVideoEnabled,
+        isScreenSharing,
         startVideo,
+        startScreenShare,
+        stopScreenShare,
         sendMessage,
         sendFile,
         toggleAudio,
