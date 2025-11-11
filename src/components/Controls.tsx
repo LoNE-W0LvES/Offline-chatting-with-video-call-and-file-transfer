@@ -1,4 +1,5 @@
 import { Mic, MicOff, Video as VideoIcon, VideoOff, MessageSquare, FolderOpen, MonitorUp, Monitor } from 'lucide-react';
+import { useState } from 'react';
 
 interface ControlsProps {
     isAudioEnabled: boolean;
@@ -23,7 +24,18 @@ export function Controls({
                              activeTab,
                              onTabChange,
                          }: ControlsProps) {
+    const [showScreenShareError, setShowScreenShareError] = useState(false);
+
+    // Check if screen sharing is supported
+    const isScreenShareSupported = navigator.mediaDevices && 'getDisplayMedia' in navigator.mediaDevices;
+
     const handleScreenShare = async () => {
+        if (!isScreenShareSupported) {
+            setShowScreenShareError(true);
+            setTimeout(() => setShowScreenShareError(false), 3000);
+            return;
+        }
+
         if (isScreenSharing) {
             await onStopScreenShare();
         } else {
@@ -31,12 +43,24 @@ export function Controls({
                 await onStartScreenShare();
             } catch (error) {
                 console.error('Failed to start screen share:', error);
+                setShowScreenShareError(true);
+                setTimeout(() => setShowScreenShareError(false), 3000);
             }
         }
     };
 
     return (
         <div className="bg-white border-t border-gray-200 p-4">
+            {showScreenShareError && (
+                <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+                    <p className="font-medium">
+                        {!isScreenShareSupported
+                            ? '📱 Screen sharing is not supported on this device/browser'
+                            : '❌ Failed to start screen sharing'}
+                    </p>
+                </div>
+            )}
+
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <div className="flex gap-3">
                     <button
@@ -65,17 +89,29 @@ export function Controls({
 
                     <button
                         onClick={handleScreenShare}
-                        className={`p-4 rounded-full transition-colors ${
+                        disabled={!isScreenShareSupported}
+                        className={`p-4 rounded-full transition-colors relative ${
                             isScreenSharing
                                 ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                : isScreenShareSupported
+                                    ? 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
-                        title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+                        title={
+                            !isScreenShareSupported
+                                ? 'Screen sharing not available on this device'
+                                : isScreenSharing
+                                    ? 'Stop sharing screen'
+                                    : 'Share screen'
+                        }
                     >
                         {isScreenSharing ? (
                             <Monitor className="w-5 h-5" />
                         ) : (
                             <MonitorUp className="w-5 h-5" />
+                        )}
+                        {!isScreenShareSupported && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
                         )}
                     </button>
                 </div>
