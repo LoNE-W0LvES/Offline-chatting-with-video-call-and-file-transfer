@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wifi, LogOut, Video, Users, ArrowRight, FolderOpen, Share2, MessageSquare } from 'lucide-react';
+import { Wifi, LogOut, Video, Users, ArrowRight, FolderOpen, Share2, MessageSquare, Activity } from 'lucide-react';
 import { Account } from '../App';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { MeetingInvitation } from '../components/MeetingInvitation';
@@ -21,6 +21,7 @@ interface HomePageProps {
     onViewFileServer: () => void;
     onViewSharedWithMe: () => void;
     onViewGlobalChat: () => void;
+    onViewIoTData: () => void;
     notifications: Notification[];
     onClearNotification: (id: string) => void;
     onMarkAsRead: (id: string) => void;
@@ -36,6 +37,7 @@ export function HomePage({
                              onViewFileServer,
                              onViewSharedWithMe,
                              onViewGlobalChat,
+                             onViewIoTData,
                              notifications,
                              onClearNotification,
                              onMarkAsRead,
@@ -176,6 +178,23 @@ export function HomePage({
                                     className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium flex items-center justify-center gap-2"
                                 >
                                     Open Chat
+                                    <ArrowRight className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
+                                <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center mb-4">
+                                    <Activity className="w-6 h-6 text-cyan-600" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-2">IoT Monitor</h2>
+                                <p className="text-gray-600 mb-6">
+                                    Monitor and manage your IoT devices
+                                </p>
+                                <button
+                                    onClick={onViewIoTData}
+                                    className="w-full px-6 py-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                    Open Monitor
                                     <ArrowRight className="w-5 h-5" />
                                 </button>
                             </div>
