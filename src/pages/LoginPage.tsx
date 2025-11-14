@@ -104,6 +104,12 @@ export function LoginPage({ onLogin, onSwitchToSignup }: LoginPageProps) {
                         ⚠️ Note: This is a local network system. No internet connection required.
                     </p>
                 </div>
+
+                <div className="mt-8 text-center">
+                    <p className="text-xs text-gray-500">
+                        © {new Date().getFullYear()} <span className="font-semibold text-gray-700">LoNE WoLvES</span>. All rights reserved.
+                    </p>
+                </div>
             </div>
         </div>
     );

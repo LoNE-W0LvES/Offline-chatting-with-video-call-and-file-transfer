@@ -665,4 +665,15 @@ Potential features for future versions:
 
 ---
 
-**Made with ❤️ for local network collaboration**
+## 📝 Copyright & License
+
+**Copyright © 2025 LoNE WoLvES. All rights reserved.**
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+### Author
+Developed and maintained by **LoNE WoLvES**
+
+---
+
+**Made with ❤️ for local network collaboration by LoNE WoLvES**

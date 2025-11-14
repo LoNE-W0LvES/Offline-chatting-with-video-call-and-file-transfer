@@ -244,6 +244,15 @@ export function HomePage({
                 </div>
             </main>
 
+            {/* Footer */}
+            <footer className="bg-white border-t border-gray-200 py-4 mt-auto">
+                <div className="max-w-7xl mx-auto px-6 text-center">
+                    <p className="text-sm text-gray-600">
+                        © {new Date().getFullYear()} <span className="font-semibold text-gray-900">LoNE WoLvES</span>. All rights reserved.
+                    </p>
+                </div>
+            </footer>
+
             {showMeetingInvitation && (
                 <MeetingInvitation
                     account={account}

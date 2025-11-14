@@ -57,6 +57,12 @@ type Page = 'login' | 'signup' | 'home' | 'meeting' | 'users' | 'fileserver' | '
 function App() {
     const [currentPage, setCurrentPage] = useState<Page>('login');
     const [account, setAccount] = useState<Account | null>(null);
+
+    // Copyright message in console
+    useEffect(() => {
+        console.log('%c LAN Collaboration Suite ', 'background: #2563eb; color: white; font-size: 16px; font-weight: bold; padding: 10px;');
+        console.log('%c © ' + new Date().getFullYear() + ' LoNE WoLvES. All rights reserved. ', 'font-size: 12px; color: #6b7280;');
+    }, []);
     const [roomId, setRoomId] = useState<string>('');
     const [selectedUser, setSelectedUser] = useState<Account | null>(null);
     const [isLoading, setIsLoading] = useState(true);
