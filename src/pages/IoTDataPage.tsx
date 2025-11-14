@@ -28,25 +28,58 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
     useEffect(() => {
         loadDevices();
-        const interval = setInterval(loadDevices, 2000);
-        return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        // Update only device data every 2 seconds (not configuration)
+        const interval = setInterval(updateDeviceData, 2000);
+        return () => clearInterval(interval);
+    }, [account.id]);
 
     const loadDevices = async () => {
         try {
             const response = await fetch(`${API_URL}/api/iot-devices?accountId=${account.id}`);
             if (response.ok) {
                 const data = await response.json();
-                // Preserve temp devices that are being edited
-                setDevices(prevDevices => {
-                    const tempDevices = prevDevices.filter(d => d.id.startsWith('temp-'));
-                    return [...tempDevices, ...data];
-                });
+                setDevices(data);
             }
         } catch (error) {
             console.error('Failed to load devices:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const updateDeviceData = async () => {
+        try {
+            const response = await fetch(`${API_URL}/api/iot-devices?accountId=${account.id}`);
+            if (response.ok) {
+                const serverDevices = await response.json();
+                // Only update data, status, lastUpdated, and error fields
+                setDevices(prevDevices =>
+                    prevDevices.map(device => {
+                        // Keep temp devices as-is
+                        if (device.id.startsWith('temp-')) {
+                            return device;
+                        }
+                        // Find matching server device
+                        const serverDevice = serverDevices.find(d => d.id === device.id);
+                        if (serverDevice) {
+                            // Only update data-related fields, preserve configuration
+                            return {
+                                ...device,
+                                data: serverDevice.data,
+                                status: serverDevice.status,
+                                lastUpdated: serverDevice.lastUpdated,
+                                error: serverDevice.error
+                            };
+                        }
+                        return device;
+                    })
+                );
+            }
+        } catch (error) {
+            console.error('Failed to update device data:', error);
         }
     };
 
@@ -102,20 +135,28 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
             if (response.ok) {
                 const responseData = await response.json();
-                // Remove temp device if it was a new device
-                if (device.id.startsWith('temp-')) {
-                    setDevices(prev => prev.filter(d => d.id !== device.id));
-                }
-                await loadDevices();
-                // Exit edit mode for the old ID
+                const newDevice = responseData.device;
+
+                // Replace temp device with saved device, or update existing
+                setDevices(prev => {
+                    if (device.id.startsWith('temp-')) {
+                        // Replace temp with newly saved device
+                        return prev.map(d => d.id === device.id ? newDevice : d);
+                    } else {
+                        // Update existing device
+                        return prev.map(d => d.id === device.id ? { ...d, ...newDevice } : d);
+                    }
+                });
+
+                // Exit edit mode
                 setEditingDevices(prev => {
                     const newSet = new Set(prev);
                     newSet.delete(device.id);
                     return newSet;
                 });
-                // Show success message using the actual saved device ID
-                const savedId = responseData.device?.id || device.id;
-                setSavedDeviceId(savedId);
+
+                // Show success message
+                setSavedDeviceId(newDevice.id);
                 setTimeout(() => setSavedDeviceId(null), 3000);
             } else {
                 const errorData = await response.json().catch(() => ({}));
