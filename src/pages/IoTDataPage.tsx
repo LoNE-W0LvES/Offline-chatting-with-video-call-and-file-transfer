@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Trash2, Save, Activity } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Save, Activity, Edit2, Check } from 'lucide-react';
 import { Account } from '../App';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -23,6 +23,8 @@ interface IoTDataPageProps {
 export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
     const [devices, setDevices] = useState<IoTDevice[]>([]);
     const [loading, setLoading] = useState(true);
+    const [editingDevices, setEditingDevices] = useState<Set<string>>(new Set());
+    const [savedDeviceId, setSavedDeviceId] = useState<string | null>(null);
 
     useEffect(() => {
         loadDevices();
@@ -45,8 +47,9 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
     };
 
     const addDevice = () => {
+        const newDeviceId = `temp-${Date.now()}`;
         const newDevice: IoTDevice = {
-            id: `temp-${Date.now()}`,
+            id: newDeviceId,
             localIp: '',
             endpoint: '',
             pingInterval: 5,
@@ -55,6 +58,8 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
             status: 'pending'
         };
         setDevices([...devices, newDevice]);
+        // New devices start in edit mode
+        setEditingDevices(prev => new Set(prev).add(newDeviceId));
     };
 
     const updateDevice = (id: string, field: keyof IoTDevice, value: any) => {
@@ -79,7 +84,15 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
             if (response.ok) {
                 await loadDevices();
-                alert('Device saved successfully!');
+                // Exit edit mode
+                setEditingDevices(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(device.id);
+                    return newSet;
+                });
+                // Show success message
+                setSavedDeviceId(device.id);
+                setTimeout(() => setSavedDeviceId(null), 3000);
             } else {
                 alert('Failed to save device');
             }
@@ -94,6 +107,11 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
         if (id.startsWith('temp-')) {
             setDevices(devices.filter(d => d.id !== id));
+            setEditingDevices(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(id);
+                return newSet;
+            });
             return;
         }
 
@@ -104,6 +122,11 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
             if (response.ok) {
                 setDevices(devices.filter(d => d.id !== id));
+                setEditingDevices(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(id);
+                    return newSet;
+                });
             } else {
                 alert('Failed to delete device');
             }
@@ -112,6 +135,26 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
             alert('Failed to delete device');
         }
     };
+
+    const enableEdit = (id: string) => {
+        setEditingDevices(prev => new Set(prev).add(id));
+    };
+
+    const cancelEdit = (id: string) => {
+        if (id.startsWith('temp-')) {
+            // Remove unsaved new device
+            setDevices(devices.filter(d => d.id !== id));
+        }
+        setEditingDevices(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(id);
+            return newSet;
+        });
+        // Reload to reset changes
+        loadDevices();
+    };
+
+    const isEditing = (id: string) => editingDevices.has(id);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -130,6 +173,17 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
             <div className="max-w-7xl mx-auto p-6">
+                {/* Success Message */}
+                {savedDeviceId && (
+                    <div className="fixed top-4 right-4 bg-green-600 text-white px-6 py-4 rounded-lg shadow-lg z-50 flex items-center gap-3 animate-slide-in">
+                        <Check className="w-5 h-5" />
+                        <div>
+                            <p className="font-semibold">Device Saved Successfully!</p>
+                            <p className="text-sm text-green-100">Monitoring has started</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Header */}
                 <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
                     <div className="flex items-center justify-between">
@@ -179,107 +233,134 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {devices.map((device) => (
-                            <div key={device.id} className="bg-white rounded-2xl shadow-lg p-6">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                    {/* Left Column - Configuration */}
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <h3 className="text-lg font-semibold text-gray-900">Device Configuration</h3>
-                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(device.status)}`}>
-                                                {device.status}
-                                            </span>
+                        {devices.map((device) => {
+                            const editing = isEditing(device.id);
+                            return (
+                                <div key={device.id} className="bg-white rounded-2xl shadow-lg p-6">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                        {/* Left Column - Configuration */}
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <h3 className="text-lg font-semibold text-gray-900">Device Configuration</h3>
+                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(device.status)}`}>
+                                                    {device.status}
+                                                </span>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Device Local IP
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={device.localIp}
+                                                    onChange={(e) => updateDevice(device.id, 'localIp', e.target.value)}
+                                                    placeholder="e.g., 192.168.1.100"
+                                                    disabled={!editing}
+                                                    className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!editing ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Endpoint
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={device.endpoint}
+                                                    onChange={(e) => updateDevice(device.id, 'endpoint', e.target.value)}
+                                                    placeholder="e.g., /api/data or /sensor/status"
+                                                    disabled={!editing}
+                                                    className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!editing ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                    Ping Interval (seconds)
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={device.pingInterval}
+                                                    onChange={(e) => updateDevice(device.id, 'pingInterval', parseInt(e.target.value))}
+                                                    disabled={!editing}
+                                                    className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!editing ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
+                                                />
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="flex gap-2">
+                                                {editing ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => saveDevice(device)}
+                                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                                        >
+                                                            <Save className="w-4 h-4" />
+                                                            Save
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteDevice(device.id)}
+                                                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                        {!device.id.startsWith('temp-') && (
+                                                            <button
+                                                                onClick={() => cancelEdit(device.id)}
+                                                                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => enableEdit(device.id)}
+                                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                        Edit
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Device Local IP
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={device.localIp}
-                                                onChange={(e) => updateDevice(device.id, 'localIp', e.target.value)}
-                                                placeholder="e.g., 192.168.1.100"
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            />
-                                        </div>
+                                        {/* Right Column - Data Display */}
+                                        <div className="space-y-4">
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-gray-900 mb-2">Device Data</h3>
+                                                <p className="text-sm text-gray-600 mb-2">
+                                                    Last Updated: {formatTimestamp(device.lastUpdated)}
+                                                </p>
+                                            </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Endpoint
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={device.endpoint}
-                                                onChange={(e) => updateDevice(device.id, 'endpoint', e.target.value)}
-                                                placeholder="e.g., /api/data or /sensor/status"
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            />
-                                        </div>
+                                            <div className="bg-gray-50 rounded-lg p-4 min-h-[200px] max-h-[400px] overflow-auto">
+                                                {device.status === 'error' ? (
+                                                    <div className="text-red-600">
+                                                        <p className="font-semibold mb-1">Error:</p>
+                                                        <p className="text-sm">{device.error || 'Failed to fetch data'}</p>
+                                                    </div>
+                                                ) : device.data ? (
+                                                    <pre className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                                                        {JSON.stringify(device.data, null, 2)}
+                                                    </pre>
+                                                ) : (
+                                                    <p className="text-gray-500 italic">No data yet. Save the device to start monitoring.</p>
+                                                )}
+                                            </div>
 
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Ping Interval (seconds)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={device.pingInterval}
-                                                onChange={(e) => updateDevice(device.id, 'pingInterval', parseInt(e.target.value))}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                            />
-                                        </div>
-
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => saveDevice(device)}
-                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                                            >
-                                                <Save className="w-4 h-4" />
-                                                Save
-                                            </button>
-                                            <button
-                                                onClick={() => deleteDevice(device.id)}
-                                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Right Column - Data Display */}
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h3 className="text-lg font-semibold text-gray-900 mb-2">Device Data</h3>
-                                            <p className="text-sm text-gray-600 mb-2">
-                                                Last Updated: {formatTimestamp(device.lastUpdated)}
-                                            </p>
-                                        </div>
-
-                                        <div className="bg-gray-50 rounded-lg p-4 min-h-[200px] max-h-[400px] overflow-auto">
-                                            {device.status === 'error' ? (
-                                                <div className="text-red-600">
-                                                    <p className="font-semibold mb-1">Error:</p>
-                                                    <p className="text-sm">{device.error || 'Failed to fetch data'}</p>
-                                                </div>
-                                            ) : device.data ? (
-                                                <pre className="text-sm text-gray-800 whitespace-pre-wrap break-words">
-                                                    {JSON.stringify(device.data, null, 2)}
-                                                </pre>
-                                            ) : (
-                                                <p className="text-gray-500 italic">No data yet. Save the device to start monitoring.</p>
+                                            {device.localIp && device.endpoint && (
+                                                <p className="text-xs text-gray-500">
+                                                    Polling: http://{device.localIp}{device.endpoint}
+                                                </p>
                                             )}
                                         </div>
-
-                                        {device.localIp && device.endpoint && (
-                                            <p className="text-xs text-gray-500">
-                                                Polling: http://{device.localIp}{device.endpoint}
-                                            </p>
-                                        )}
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
