@@ -8,6 +8,7 @@ import { FileServerPage } from './pages/FileServerPage';
 import { SharedWithMePage } from './pages/SharedWithMePage';
 import { MessagesPage } from './pages/MessagesPage';
 import { GlobalChatPage } from './pages/GlobalChatPage';
+import { IoTDataPage } from './pages/IoTDataPage';
 import { Phone, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -51,7 +52,7 @@ interface Notification {
     read: boolean;
 }
 
-type Page = 'login' | 'signup' | 'home' | 'meeting' | 'users' | 'fileserver' | 'sharedwithme' | 'messages' | 'globalchat';
+type Page = 'login' | 'signup' | 'home' | 'meeting' | 'users' | 'fileserver' | 'sharedwithme' | 'messages' | 'globalchat' | 'iotdata';
 
 function App() {
     const [currentPage, setCurrentPage] = useState<Page>('login');
@@ -660,6 +661,18 @@ function App() {
         );
     }
 
+    if (currentPage === 'iotdata' && account) {
+        return (
+            <>
+                <IoTDataPage
+                    account={account}
+                    onBack={() => setCurrentPage('home')}
+                />
+                {incomingCallModal}
+            </>
+        );
+    }
+
     if (account) {
         return (
             <>
@@ -677,6 +690,7 @@ function App() {
                     onViewFileServer={() => setCurrentPage('fileserver')}
                     onViewSharedWithMe={() => setCurrentPage('sharedwithme')}
                     onViewGlobalChat={() => setCurrentPage('globalchat')}
+                    onViewIoTData={() => setCurrentPage('iotdata')}
                     notifications={notifications}
                     onClearNotification={clearNotification}
                     onMarkAsRead={markNotificationAsRead}

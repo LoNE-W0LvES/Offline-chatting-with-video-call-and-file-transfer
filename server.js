@@ -33,9 +33,11 @@ const usersFile = join(__dirname, 'users.json');
 const accountsFile = join(__dirname, 'accounts.json');
 const callsFile = join(__dirname, 'calls.json');
 const filesMetaFile = join(__dirname, 'files_meta.json');
+const iotDevicesFile = join(__dirname, 'iot_devices.json');
 const signalingMessages = [];
 let messageIdCounter = 0;
 let callIdCounter = 0;
+const iotPollingIntervals = new Map();
 
 const USER_TIMEOUT = 5 * 60 * 1000;
 
@@ -84,7 +86,8 @@ async function initializeFiles() {
         { path: usersFile, content: [] },
         { path: accountsFile, content: [] },
         { path: callsFile, content: [] },
-        { path: filesMetaFile, content: [] }
+        { path: filesMetaFile, content: [] },
+        { path: iotDevicesFile, content: [] }
     ];
 
     for (const file of files) {
@@ -530,6 +533,196 @@ app.get('/api/global-chat', async (req, res) => {
     }
 });
 
+// ==================== IOT DEVICES ====================
+// Helper function to poll IoT device
+async function pollIoTDevice(device) {
+    try {
+        const url = `http://${device.localIp}${device.endpoint}`;
+        debug.log(`📡 Polling IoT device: ${url}`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        const response = await fetch(url, {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const data = await response.json();
+            device.data = data;
+            device.lastUpdated = Date.now();
+            device.status = 'active';
+            delete device.error;
+            debug.log(`✅ IoT device data updated: ${device.id}`);
+        } else {
+            device.status = 'error';
+            device.error = `HTTP ${response.status}: ${response.statusText}`;
+            debug.log(`❌ IoT device error: ${device.id} - ${device.error}`);
+        }
+    } catch (error) {
+        device.status = 'error';
+        device.error = error.name === 'AbortError' ? 'Request timeout' : error.message;
+        debug.log(`❌ IoT device fetch failed: ${device.id} - ${device.error}`);
+    }
+}
+
+// Start polling for a device
+function startDevicePolling(device) {
+    // Clear existing interval if any
+    if (iotPollingIntervals.has(device.id)) {
+        clearInterval(iotPollingIntervals.get(device.id));
+    }
+
+    // Initial poll
+    pollIoTDevice(device);
+
+    // Set up interval
+    const interval = setInterval(() => {
+        pollIoTDevice(device);
+        // Save updated data to file
+        saveIoTDevices();
+    }, device.pingInterval * 1000);
+
+    iotPollingIntervals.set(device.id, interval);
+    debug.log(`🔄 Started polling for device ${device.id} every ${device.pingInterval}s`);
+}
+
+// Stop polling for a device
+function stopDevicePolling(deviceId) {
+    if (iotPollingIntervals.has(deviceId)) {
+        clearInterval(iotPollingIntervals.get(deviceId));
+        iotPollingIntervals.delete(deviceId);
+        debug.log(`⏸️ Stopped polling for device ${deviceId}`);
+    }
+}
+
+// Save IoT devices to file
+async function saveIoTDevices() {
+    try {
+        const data = await fs.readFile(iotDevicesFile, 'utf-8');
+        const allDevices = JSON.parse(data);
+        await fs.writeFile(iotDevicesFile, JSON.stringify(allDevices, null, 2));
+    } catch (error) {
+        debug.error('Failed to save IoT devices:', error);
+    }
+}
+
+// Get all IoT devices for an account
+app.get('/api/iot-devices', async (req, res) => {
+    try {
+        const { accountId } = req.query;
+
+        let devices = [];
+        try {
+            const data = await fs.readFile(iotDevicesFile, 'utf-8');
+            devices = JSON.parse(data);
+        } catch {}
+
+        if (accountId) {
+            devices = devices.filter(d => d.accountId === accountId);
+        }
+
+        res.json(devices);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Create or update IoT device
+app.post('/api/iot-devices', async (req, res) => {
+    try {
+        const { id, accountId, localIp, endpoint, pingInterval } = req.body;
+
+        if (!accountId || !localIp || !endpoint || !pingInterval) {
+            return res.status(400).json({ error: 'Missing required fields' });
+        }
+
+        let devices = [];
+        try {
+            const data = await fs.readFile(iotDevicesFile, 'utf-8');
+            devices = JSON.parse(data);
+        } catch {}
+
+        let device;
+        if (id && !id.startsWith('temp-')) {
+            // Update existing device
+            const deviceIndex = devices.findIndex(d => d.id === id);
+            if (deviceIndex !== -1) {
+                // Stop old polling
+                stopDevicePolling(id);
+
+                devices[deviceIndex] = {
+                    ...devices[deviceIndex],
+                    localIp,
+                    endpoint,
+                    pingInterval,
+                };
+                device = devices[deviceIndex];
+            } else {
+                return res.status(404).json({ error: 'Device not found' });
+            }
+        } else {
+            // Create new device
+            device = {
+                id: `iot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                accountId,
+                localIp,
+                endpoint,
+                pingInterval,
+                data: null,
+                lastUpdated: 0,
+                status: 'pending',
+            };
+            devices.push(device);
+        }
+
+        await fs.writeFile(iotDevicesFile, JSON.stringify(devices, null, 2));
+
+        // Start polling for this device
+        startDevicePolling(device);
+
+        res.json({ success: true, device });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Delete IoT device
+app.delete('/api/iot-devices/:deviceId', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { accountId } = req.query;
+
+        let devices = [];
+        try {
+            const data = await fs.readFile(iotDevicesFile, 'utf-8');
+            devices = JSON.parse(data);
+        } catch {}
+
+        const device = devices.find(d => d.id === deviceId);
+        if (!device) {
+            return res.status(404).json({ error: 'Device not found' });
+        }
+
+        if (device.accountId !== accountId) {
+            return res.status(403).json({ error: 'Not authorized' });
+        }
+
+        // Stop polling
+        stopDevicePolling(deviceId);
+
+        // Remove device
+        devices = devices.filter(d => d.id !== deviceId);
+        await fs.writeFile(iotDevicesFile, JSON.stringify(devices, null, 2));
+
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // ==================== CALLS ====================
 app.post('/api/calls', async (req, res) => {
     try {
@@ -901,6 +1094,23 @@ setInterval(async () => {
 
 async function startServer() {
     await initializeFiles();
+
+    // Restart IoT device polling for existing devices
+    try {
+        const data = await fs.readFile(iotDevicesFile, 'utf-8');
+        const devices = JSON.parse(data);
+        devices.forEach(device => {
+            if (device.localIp && device.endpoint && device.pingInterval) {
+                startDevicePolling(device);
+                console.log(`🔄 Resumed polling for IoT device: ${device.id}`);
+            }
+        });
+        if (devices.length > 0) {
+            console.log(`📡 Started polling for ${devices.length} IoT device(s)`);
+        }
+    } catch (error) {
+        // No devices yet or error reading file
+    }
 
     let useHttps = false;
     let httpsOptions = null;
