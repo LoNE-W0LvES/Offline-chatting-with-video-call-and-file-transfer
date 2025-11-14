@@ -69,6 +69,20 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
     };
 
     const saveDevice = async (device: IoTDevice) => {
+        // Validate fields
+        if (!device.localIp || !device.localIp.trim()) {
+            alert('Please enter a device local IP address');
+            return;
+        }
+        if (!device.endpoint || !device.endpoint.trim()) {
+            alert('Please enter an endpoint path');
+            return;
+        }
+        if (!device.pingInterval || device.pingInterval < 1 || isNaN(device.pingInterval)) {
+            alert('Please enter a valid ping interval (minimum 1 second)');
+            return;
+        }
+
         try {
             const response = await fetch(`${API_URL}/api/iot-devices`, {
                 method: 'POST',
@@ -76,8 +90,8 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
                 body: JSON.stringify({
                     id: device.id.startsWith('temp-') ? undefined : device.id,
                     accountId: account.id,
-                    localIp: device.localIp,
-                    endpoint: device.endpoint,
+                    localIp: device.localIp.trim(),
+                    endpoint: device.endpoint.trim(),
                     pingInterval: device.pingInterval,
                 }),
             });
@@ -94,11 +108,12 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
                 setSavedDeviceId(device.id);
                 setTimeout(() => setSavedDeviceId(null), 3000);
             } else {
-                alert('Failed to save device');
+                const errorData = await response.json().catch(() => ({}));
+                alert(`Failed to save device: ${errorData.error || 'Unknown error'}`);
             }
         } catch (error) {
             console.error('Failed to save device:', error);
-            alert('Failed to save device');
+            alert(`Failed to save device: ${error instanceof Error ? error.message : 'Network error'}`);
         }
     };
 
@@ -249,13 +264,14 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Device Local IP
+                                                    Device Local IP <span className="text-red-500">*</span>
                                                 </label>
                                                 <input
                                                     type="text"
                                                     value={device.localIp}
                                                     onChange={(e) => updateDevice(device.id, 'localIp', e.target.value)}
                                                     placeholder="e.g., 192.168.1.100"
+                                                    required
                                                     disabled={!editing}
                                                     className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!editing ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
                                                 />
@@ -263,13 +279,14 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Endpoint
+                                                    Endpoint <span className="text-red-500">*</span>
                                                 </label>
                                                 <input
                                                     type="text"
                                                     value={device.endpoint}
                                                     onChange={(e) => updateDevice(device.id, 'endpoint', e.target.value)}
                                                     placeholder="e.g., /api/data or /sensor/status"
+                                                    required
                                                     disabled={!editing}
                                                     className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!editing ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
                                                 />
@@ -277,13 +294,14 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
 
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                    Ping Interval (seconds)
+                                                    Ping Interval (seconds) <span className="text-red-500">*</span>
                                                 </label>
                                                 <input
                                                     type="number"
                                                     min="1"
                                                     value={device.pingInterval}
-                                                    onChange={(e) => updateDevice(device.id, 'pingInterval', parseInt(e.target.value))}
+                                                    onChange={(e) => updateDevice(device.id, 'pingInterval', parseInt(e.target.value) || 0)}
+                                                    required
                                                     disabled={!editing}
                                                     className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!editing ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`}
                                                 />
