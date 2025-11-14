@@ -62,63 +62,53 @@ echo ========================================
 echo  Starting All Services...
 echo ========================================
 echo.
-echo  Backend:   https://%IP%:3001
-echo  Frontend:  https://%IP%:5173
-echo  HTTP Redirect:
-echo    - http://%IP% (port 80) redirects to https://%IP%:5173
+echo  Running all servers concurrently in ONE window:
+echo    - Backend:   https://%IP%:3001
+echo    - Frontend:  https://%IP%:5173
+echo    - HTTP Redirect: http://%IP% (port 80)
 echo.
-echo Three windows will open:
-echo  1. Server (Backend) - Keep this window open
-echo  2. Client (Frontend) - Keep this window open
-echo  3. HTTP Redirect - Keep this window open
+echo IMPORTANT: HTTP redirect uses port 80 which requires
+echo            administrator privileges. This script will
+echo            start with admin rights automatically.
 echo.
-echo IMPORTANT: HTTP redirect uses port 80 which may require
-echo            administrator privileges. If it fails, right-click
-echo            start_all.bat and choose "Run as administrator"
-echo.
-echo Press Ctrl+C in each window to stop them
+echo Press Ctrl+C in the server window to stop all services
 echo.
 echo Starting in 3 seconds...
 timeout /t 3 /nobreak > nul
 
-:: Start server in new window
-start "LAN Collab Server - Port 3001" cmd /K "npm run server"
+:: Start all servers in one window using concurrently
+start "LAN Collab Suite - All Services" cmd /K "npm run dev"
 
-:: Wait for server to start
+:: Wait for services to start
 echo.
-echo Waiting 8 seconds for server to initialize...
+echo Waiting 8 seconds for all services to initialize...
 timeout /t 8 /nobreak > nul
 
-:: Start client in new window
-start "LAN Collab Client - Port 5173 HTTPS" cmd /K "npm run dev"
-
-:: Wait a moment before starting redirect
-timeout /t 2 /nobreak > nul
-
-:: Start HTTP redirect server
-start "LAN Collab HTTP Redirect - Port 5174" cmd /K "npm run redirect"
-
 echo.
 echo ========================================
-echo [OK] All services started!
+echo [OK] All services started in ONE window!
 echo ========================================
 echo.
-echo  Server Window: LAN Collab Server - Port 3001
-echo  Client Window: LAN Collab Client - Port 5173 HTTPS
-echo  Redirect Window: LAN Collab HTTP Redirect - Port 80
+echo  Window Title: "LAN Collab Suite - All Services"
+echo.
+echo  Services running:
+echo    [FRONTEND]  Vite Dev Server (port 5173)
+echo    [BACKEND]   Express API Server (port 3001)
+echo    [REDIRECT]  HTTP to HTTPS Redirect (port 80)
 echo.
 echo  Access from this PC:
 echo    https://localhost:5173
 echo.
-echo  Access from other devices:
+echo  Access from other devices on LAN:
 echo    Option 1 (HTTPS): https://%IP%:5173
-echo    Option 2 (HTTP - simpler!): http://%IP%
+echo    Option 2 (HTTP - auto redirects): http://%IP%
 echo.
 echo  Note: Users must accept the security warning for
 echo        self-signed certificate on first visit.
 echo.
-echo To stop: Close all three windows or press Ctrl+C in them
+echo To stop: Close the server window or press Ctrl+C in it
 echo.
-echo You can close THIS window now.
+echo You can close THIS launcher window now.
+echo The services will continue running in the other window.
 echo.
 pause
