@@ -7,6 +7,7 @@ import { UsersPage } from './pages/UsersPage';
 import { FileServerPage } from './pages/FileServerPage';
 import { SharedWithMePage } from './pages/SharedWithMePage';
 import { MessagesPage } from './pages/MessagesPage';
+import { MessagesListPage } from './pages/MessagesListPage';
 import { GlobalChatPage } from './pages/GlobalChatPage';
 import { IoTDataPage } from './pages/IoTDataPage';
 import { Phone, X } from 'lucide-react';
@@ -52,10 +53,11 @@ interface Notification {
     read: boolean;
 }
 
-type Page = 'login' | 'signup' | 'home' | 'meeting' | 'users' | 'fileserver' | 'sharedwithme' | 'messages' | 'globalchat' | 'iotdata';
+type Page = 'login' | 'signup' | 'home' | 'meeting' | 'users' | 'fileserver' | 'sharedwithme' | 'messages' | 'messageslist' | 'globalchat' | 'iotdata';
 
 function App() {
     const [currentPage, setCurrentPage] = useState<Page>('login');
+    const [previousPage, setPreviousPage] = useState<Page>('home');
     const [account, setAccount] = useState<Account | null>(null);
 
     // Copyright message in console
@@ -401,6 +403,7 @@ function App() {
 
     const handleMessageUser = (user: Account) => {
         setSelectedUser(user);
+        setPreviousPage(currentPage);
         setCurrentPage('messages');
     };
 
@@ -646,13 +649,30 @@ function App() {
         );
     }
 
+    if (currentPage === 'messageslist' && account) {
+        return (
+            <>
+                <MessagesListPage
+                    account={account}
+                    onBack={() => setCurrentPage('home')}
+                    onSelectConversation={(user) => {
+                        setSelectedUser(user);
+                        setPreviousPage('messageslist');
+                        setCurrentPage('messages');
+                    }}
+                />
+                {incomingCallModal}
+            </>
+        );
+    }
+
     if (currentPage === 'messages' && account && selectedUser) {
         return (
             <>
                 <MessagesPage
                     account={account}
                     targetUser={selectedUser}
-                    onBack={() => setCurrentPage('users')}
+                    onBack={() => setCurrentPage(previousPage === 'messageslist' ? 'messageslist' : 'users')}
                     onNewMessage={(from, message) => {
                         addNotification({
                             type: 'message',
@@ -697,6 +717,7 @@ function App() {
                     onViewSharedWithMe={() => setCurrentPage('sharedwithme')}
                     onViewGlobalChat={() => setCurrentPage('globalchat')}
                     onViewIoTData={() => setCurrentPage('iotdata')}
+                    onViewMessages={() => setCurrentPage('messageslist')}
                     notifications={notifications}
                     onClearNotification={clearNotification}
                     onMarkAsRead={markNotificationAsRead}
