@@ -45,6 +45,7 @@ A comprehensive real-time collaboration platform designed for local network comm
 - **Instant Meetings**: Create meeting rooms with unique IDs
 - **Group Meetings**: Invite multiple users to a single meeting
 - **Meeting Invitations**: Send meeting invites to specific users
+- **Screen Sharing**: Share your screen with meeting participants (desktop only)
 - **Room-based File Sharing**: Share files within meeting contexts
 - **Persistent Room IDs**: Share room IDs to let others join
 
@@ -707,6 +708,7 @@ Response example: {"heart_rate": 72, "blood_pressure": "120/80", "temperature": 
 - Audio/video controls:
   - Microphone toggle (mute/unmute)
   - Camera toggle (on/off)
+  - **Screen share button** (desktop only)
   - Leave meeting button
 - Sidebar with 3 tabs:
   - **Chat**: Text messaging with all participants
@@ -718,10 +720,19 @@ Response example: {"heart_rate": 72, "blood_pressure": "120/80", "temperature": 
 **How to use**:
 - Allow camera/microphone permissions when prompted
 - Use control buttons to manage audio/video
+- **Screen sharing**: Click screen share button (monitor icon) to share your screen
+  - Select which window/screen to share
+  - Click again to stop sharing
+  - ⚠️ **Desktop only** - Not supported on mobile browsers
 - Type messages in chat tab
 - Upload files in files tab
 - Share room ID with others to invite them
 - Click "Leave" to exit meeting
+
+**Platform Compatibility**:
+- ✅ Desktop (Windows/Mac/Linux): Full video, audio, and screen sharing
+- ✅ Mobile (iOS/Android): Video and audio calls work
+- ❌ Mobile: Screen sharing **NOT supported** (browser limitation)
 
 **[IMAGE PLACEHOLDER: Screenshot of Meeting Room with video grid and sidebar]**
 
@@ -1113,6 +1124,40 @@ lan-collaboration-suite/
 4. Verify `/chat` directory exists and is writable
 5. Try refreshing the page
 
+### Screen Sharing Not Working
+
+**Issue**: Can't share screen or screen share button is missing/disabled
+
+**Solution**:
+1. **On Mobile Devices**: Screen sharing is **NOT supported** on mobile browsers
+   - This is a browser/OS limitation, not an app issue
+   - Use a desktop computer for screen sharing
+2. **On Desktop**:
+   - Ensure you're using HTTPS (not HTTP)
+   - Use a modern browser: Chrome 72+, Firefox 66+, Edge 79+
+   - Check browser permissions for screen capture
+   - Try refreshing the page and rejoining the meeting
+   - On Linux, you may need to grant additional permissions
+3. **Supported Platforms**:
+   - ✅ Windows (Chrome, Edge, Firefox)
+   - ✅ macOS (Chrome, Safari, Firefox)
+   - ✅ Linux (Chrome, Firefox)
+   - ❌ iOS (not supported by Safari or any mobile browser)
+   - ❌ Android (not supported in mobile browsers)
+
+### IoT Device Not Responding
+
+**Issue**: Device shows "Error" status or no data appears
+
+**Solution**:
+1. Verify device IP address is correct
+2. Ensure device is on the same network
+3. Test device endpoint in browser: `http://DEVICE_IP/endpoint`
+4. Check if device requires authentication (not currently supported)
+5. Verify device returns valid JSON
+6. Check device firewall settings
+7. Ensure polling interval is reasonable (not too frequent)
+
 ---
 
 ## 🛠️ Technology Stack
@@ -1226,11 +1271,10 @@ For issues, questions, or suggestions:
 ## 🚀 Future Enhancements
 
 Potential features for future versions:
-- Screen sharing capability
-- Recording meetings
+- Recording meetings (video/audio)
 - End-to-end encryption
-- Mobile app (React Native)
-- Better NAT traversal (TURN servers)
+- Mobile app (React Native) with native screen sharing
+- Better NAT traversal (TURN servers for online deployment)
 - Database integration (MongoDB/PostgreSQL)
 - User profiles with avatars
 - Group chat rooms (separate from global)
@@ -1238,6 +1282,9 @@ Potential features for future versions:
 - Drag-and-drop file uploads
 - Voice-only calls option
 - Meeting scheduling
+- Password hashing and advanced authentication
+- IoT device data visualization (charts/graphs)
+- Export IoT data to CSV/Excel
 
 ---
 
