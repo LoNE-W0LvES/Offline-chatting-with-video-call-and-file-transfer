@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wifi, LogOut, Video, Users, ArrowRight, FolderOpen, Share2, MessageSquare, Activity } from 'lucide-react';
+import { Wifi, LogOut, Video, Users, ArrowRight, FolderOpen, Share2, MessageSquare, Activity, Mail } from 'lucide-react';
 import { Account } from '../App';
 import { NotificationCenter } from '../components/NotificationCenter';
 import { MeetingInvitation } from '../components/MeetingInvitation';
@@ -22,6 +22,7 @@ interface HomePageProps {
     onViewSharedWithMe: () => void;
     onViewGlobalChat: () => void;
     onViewIoTData: () => void;
+    onViewMessages: () => void;
     notifications: Notification[];
     onClearNotification: (id: string) => void;
     onMarkAsRead: (id: string) => void;
@@ -38,6 +39,7 @@ export function HomePage({
                              onViewSharedWithMe,
                              onViewGlobalChat,
                              onViewIoTData,
+                             onViewMessages,
                              notifications,
                              onClearNotification,
                              onMarkAsRead,
@@ -195,6 +197,23 @@ export function HomePage({
                                     className="w-full px-6 py-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors font-medium flex items-center justify-center gap-2"
                                 >
                                     Open Monitor
+                                    <ArrowRight className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
+                                <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mb-4">
+                                    <Mail className="w-6 h-6 text-pink-600" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-2">My Messages</h2>
+                                <p className="text-gray-600 mb-6">
+                                    View your direct message conversations
+                                </p>
+                                <button
+                                    onClick={onViewMessages}
+                                    className="w-full px-6 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                    Open Inbox
                                     <ArrowRight className="w-5 h-5" />
                                 </button>
                             </div>
