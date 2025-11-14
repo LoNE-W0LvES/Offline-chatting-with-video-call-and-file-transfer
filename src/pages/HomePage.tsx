@@ -98,7 +98,34 @@ export function HomePage({
             <main className="flex-1 overflow-y-auto">
                 <div className="max-w-6xl mx-auto p-8">
                     <div className="space-y-6">
+                        {/* Row 1: Join a Meeting and Start Meeting */}
                         <div className="grid md:grid-cols-2 gap-6">
+                            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
+                                <div className="w-12 h-12 bg-teal-100 rounded-full flex items-center justify-center mb-4">
+                                    <Video className="w-6 h-6 text-teal-600" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-2">Join a Meeting</h2>
+                                <p className="text-gray-600 mb-6">
+                                    Enter a room ID to join an existing meeting
+                                </p>
+                                <form onSubmit={handleJoinRoom} className="flex gap-3">
+                                    <input
+                                        type="text"
+                                        value={roomId}
+                                        onChange={(e) => setRoomId(e.target.value)}
+                                        placeholder="Enter room ID"
+                                        className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!roomId.trim()}
+                                        className="px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Join
+                                    </button>
+                                </form>
+                            </div>
+
                             <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
                                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                                     <Video className="w-6 h-6 text-blue-600" />
@@ -115,7 +142,10 @@ export function HomePage({
                                     <ArrowRight className="w-5 h-5" />
                                 </button>
                             </div>
+                        </div>
 
+                        {/* Row 2: View Users and My Messages */}
+                        <div className="grid md:grid-cols-2 gap-6">
                             <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
                                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
                                     <Users className="w-6 h-6 text-green-600" />
@@ -133,6 +163,26 @@ export function HomePage({
                                 </button>
                             </div>
 
+                            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
+                                <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mb-4">
+                                    <Mail className="w-6 h-6 text-pink-600" />
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900 mb-2">My Messages</h2>
+                                <p className="text-gray-600 mb-6">
+                                    View your direct message conversations
+                                </p>
+                                <button
+                                    onClick={onViewMessages}
+                                    className="w-full px-6 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-medium flex items-center justify-center gap-2"
+                                >
+                                    Open Inbox
+                                    <ArrowRight className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Row 3: File Server and Shared with Me */}
+                        <div className="grid md:grid-cols-2 gap-6">
                             <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
                                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
                                     <FolderOpen className="w-6 h-6 text-purple-600" />
@@ -166,7 +216,10 @@ export function HomePage({
                                     <ArrowRight className="w-5 h-5" />
                                 </button>
                             </div>
+                        </div>
 
+                        {/* Row 4: Global Chat and IoT Monitor */}
+                        <div className="grid md:grid-cols-2 gap-6">
                             <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
                                 <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
                                     <MessageSquare className="w-6 h-6 text-indigo-600" />
@@ -200,46 +253,6 @@ export function HomePage({
                                     <ArrowRight className="w-5 h-5" />
                                 </button>
                             </div>
-
-                            <div className="bg-white rounded-2xl shadow-lg p-8 hover:shadow-xl transition-shadow">
-                                <div className="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center mb-4">
-                                    <Mail className="w-6 h-6 text-pink-600" />
-                                </div>
-                                <h2 className="text-2xl font-bold text-gray-900 mb-2">My Messages</h2>
-                                <p className="text-gray-600 mb-6">
-                                    View your direct message conversations
-                                </p>
-                                <button
-                                    onClick={onViewMessages}
-                                    className="w-full px-6 py-3 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors font-medium flex items-center justify-center gap-2"
-                                >
-                                    Open Inbox
-                                    <ArrowRight className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="bg-white rounded-2xl shadow-lg p-8">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">Join a Meeting</h2>
-                            <p className="text-gray-600 mb-6">
-                                Enter a room ID to join an existing meeting
-                            </p>
-                            <form onSubmit={handleJoinRoom} className="flex gap-3">
-                                <input
-                                    type="text"
-                                    value={roomId}
-                                    onChange={(e) => setRoomId(e.target.value)}
-                                    placeholder="Enter room ID"
-                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!roomId.trim()}
-                                    className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Join
-                                </button>
-                            </form>
                         </div>
 
                         <div className="grid md:grid-cols-3 gap-4">
