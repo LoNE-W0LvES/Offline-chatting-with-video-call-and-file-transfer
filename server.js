@@ -535,8 +535,22 @@ app.get('/api/global-chat', async (req, res) => {
 
 // ==================== IOT DEVICES ====================
 // Helper function to poll IoT device
-async function pollIoTDevice(device) {
+async function pollIoTDevice(deviceId) {
     try {
+        // Read current devices from file
+        let devices = [];
+        try {
+            const data = await fs.readFile(iotDevicesFile, 'utf-8');
+            devices = JSON.parse(data);
+        } catch {
+            return;
+        }
+
+        // Find the device
+        const deviceIndex = devices.findIndex(d => d.id === deviceId);
+        if (deviceIndex === -1) return;
+
+        const device = devices[deviceIndex];
         const url = `http://${device.localIp}${device.endpoint}`;
         debug.log(`📡 Polling IoT device: ${url}`);
 
@@ -551,20 +565,34 @@ async function pollIoTDevice(device) {
 
         if (response.ok) {
             const data = await response.json();
-            device.data = data;
-            device.lastUpdated = Date.now();
-            device.status = 'active';
-            delete device.error;
-            debug.log(`✅ IoT device data updated: ${device.id}`);
+            devices[deviceIndex].data = data;
+            devices[deviceIndex].lastUpdated = Date.now();
+            devices[deviceIndex].status = 'active';
+            delete devices[deviceIndex].error;
+            debug.log(`✅ IoT device data updated: ${deviceId}`);
         } else {
-            device.status = 'error';
-            device.error = `HTTP ${response.status}: ${response.statusText}`;
-            debug.log(`❌ IoT device error: ${device.id} - ${device.error}`);
+            devices[deviceIndex].status = 'error';
+            devices[deviceIndex].error = `HTTP ${response.status}: ${response.statusText}`;
+            debug.log(`❌ IoT device error: ${deviceId} - ${devices[deviceIndex].error}`);
         }
+
+        // Save updated devices back to file
+        await fs.writeFile(iotDevicesFile, JSON.stringify(devices, null, 2));
     } catch (error) {
-        device.status = 'error';
-        device.error = error.name === 'AbortError' ? 'Request timeout' : error.message;
-        debug.log(`❌ IoT device fetch failed: ${device.id} - ${device.error}`);
+        // Update error status
+        try {
+            const data = await fs.readFile(iotDevicesFile, 'utf-8');
+            const devices = JSON.parse(data);
+            const deviceIndex = devices.findIndex(d => d.id === deviceId);
+            if (deviceIndex !== -1) {
+                devices[deviceIndex].status = 'error';
+                devices[deviceIndex].error = error.name === 'AbortError' ? 'Request timeout' : error.message;
+                await fs.writeFile(iotDevicesFile, JSON.stringify(devices, null, 2));
+                debug.log(`❌ IoT device fetch failed: ${deviceId} - ${devices[deviceIndex].error}`);
+            }
+        } catch (saveError) {
+            debug.error('Failed to save error status:', saveError);
+        }
     }
 }
 
@@ -576,13 +604,11 @@ function startDevicePolling(device) {
     }
 
     // Initial poll
-    pollIoTDevice(device);
+    pollIoTDevice(device.id);
 
     // Set up interval
     const interval = setInterval(() => {
-        pollIoTDevice(device);
-        // Save updated data to file
-        saveIoTDevices();
+        pollIoTDevice(device.id);
     }, device.pingInterval * 1000);
 
     iotPollingIntervals.set(device.id, interval);
@@ -595,17 +621,6 @@ function stopDevicePolling(deviceId) {
         clearInterval(iotPollingIntervals.get(deviceId));
         iotPollingIntervals.delete(deviceId);
         debug.log(`⏸️ Stopped polling for device ${deviceId}`);
-    }
-}
-
-// Save IoT devices to file
-async function saveIoTDevices() {
-    try {
-        const data = await fs.readFile(iotDevicesFile, 'utf-8');
-        const allDevices = JSON.parse(data);
-        await fs.writeFile(iotDevicesFile, JSON.stringify(allDevices, null, 2));
-    } catch (error) {
-        debug.error('Failed to save IoT devices:', error);
     }
 }
 
