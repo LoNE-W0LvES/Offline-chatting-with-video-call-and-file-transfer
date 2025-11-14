@@ -37,7 +37,11 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
             const response = await fetch(`${API_URL}/api/iot-devices?accountId=${account.id}`);
             if (response.ok) {
                 const data = await response.json();
-                setDevices(data);
+                // Preserve temp devices that are being edited
+                setDevices(prevDevices => {
+                    const tempDevices = prevDevices.filter(d => d.id.startsWith('temp-'));
+                    return [...tempDevices, ...data];
+                });
             }
         } catch (error) {
             console.error('Failed to load devices:', error);
@@ -97,15 +101,21 @@ export function IoTDataPage({ account, onBack }: IoTDataPageProps) {
             });
 
             if (response.ok) {
+                const responseData = await response.json();
+                // Remove temp device if it was a new device
+                if (device.id.startsWith('temp-')) {
+                    setDevices(prev => prev.filter(d => d.id !== device.id));
+                }
                 await loadDevices();
-                // Exit edit mode
+                // Exit edit mode for the old ID
                 setEditingDevices(prev => {
                     const newSet = new Set(prev);
                     newSet.delete(device.id);
                     return newSet;
                 });
-                // Show success message
-                setSavedDeviceId(device.id);
+                // Show success message using the actual saved device ID
+                const savedId = responseData.device?.id || device.id;
+                setSavedDeviceId(savedId);
                 setTimeout(() => setSavedDeviceId(null), 3000);
             } else {
                 const errorData = await response.json().catch(() => ({}));
