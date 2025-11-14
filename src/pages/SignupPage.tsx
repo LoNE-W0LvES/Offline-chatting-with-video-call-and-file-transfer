@@ -120,6 +120,12 @@ export function SignupPage({ onSignup, onSwitchToLogin }: SignupPageProps) {
                         💡 Your account is stored locally on this network
                     </p>
                 </div>
+
+                <div className="mt-8 text-center">
+                    <p className="text-xs text-gray-500">
+                        © {new Date().getFullYear()} <span className="font-semibold text-gray-700">LoNE WoLvES</span>. All rights reserved.
+                    </p>
+                </div>
             </div>
         </div>
     );
