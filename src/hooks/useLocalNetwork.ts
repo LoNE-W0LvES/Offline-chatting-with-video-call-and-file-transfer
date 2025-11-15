@@ -364,6 +364,25 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             setLocalStream(screenStream);
             setIsScreenSharing(true);
             console.log('✅ Screen share started successfully');
+
+            // Renegotiate with all peers to notify them of the new track
+            const peers = Array.from(webrtcRef.current['peers'].values());
+            if (peers.length > 0) {
+                console.log(`🔄 Renegotiating with ${peers.length} peer(s) for screen share`);
+                for (const peer of peers) {
+                    if (peer.connection.signalingState === 'stable') {
+                        console.log(`🔄 Renegotiating with ${peer.name}...`);
+                        const offer = await peer.connection.createOffer();
+                        await peer.connection.setLocalDescription(offer);
+                        signalingRef.current?.send({
+                            type: 'offer',
+                            to: peer.id,
+                            data: offer,
+                        });
+                        console.log(`✅ Sent renegotiation offer to ${peer.name}`);
+                    }
+                }
+            }
         } catch (error) {
             console.error('❌ Failed to start screen share:', error);
             throw error;
@@ -382,6 +401,25 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             setLocalStream(cameraStream);
             setIsScreenSharing(false);
             console.log('✅ Screen share stopped, camera restored');
+
+            // Renegotiate with all peers to notify them of the camera track
+            const peers = Array.from(webrtcRef.current['peers'].values());
+            if (peers.length > 0) {
+                console.log(`🔄 Renegotiating with ${peers.length} peer(s) to restore camera`);
+                for (const peer of peers) {
+                    if (peer.connection.signalingState === 'stable') {
+                        console.log(`🔄 Renegotiating with ${peer.name}...`);
+                        const offer = await peer.connection.createOffer();
+                        await peer.connection.setLocalDescription(offer);
+                        signalingRef.current?.send({
+                            type: 'offer',
+                            to: peer.id,
+                            data: offer,
+                        });
+                        console.log(`✅ Sent renegotiation offer to ${peer.name}`);
+                    }
+                }
+            }
         } catch (error) {
             console.error('❌ Failed to stop screen share:', error);
         }
