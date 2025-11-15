@@ -102,28 +102,26 @@ export class WebRTCManager {
             this.localScreenStream = screenStream;
             console.log('🖥️ Screen share started');
 
-            // Replace video track in all peer connections
-            const videoTrack = screenStream.getVideoTracks()[0];
+            // Remove old video track and add screen share track
+            const screenVideoTrack = screenStream.getVideoTracks()[0];
 
-            // FIXED: Await replaceTrack for all peers
-            const replacePromises: Promise<void>[] = [];
             this.peers.forEach(peer => {
-                const sender = peer.connection.getSenders().find(s => s.track?.kind === 'video');
-                if (sender) {
-                    replacePromises.push(
-                        sender.replaceTrack(videoTrack).then(() => {
-                            console.log(`✅ Replaced video track with screen share for ${peer.name}`);
-                        })
-                    );
+                const senders = peer.connection.getSenders();
+                const videoSender = senders.find(s => s.track?.kind === 'video');
+
+                if (videoSender && videoSender.track) {
+                    // Remove old video track
+                    peer.connection.removeTrack(videoSender);
+                    console.log(`🗑️ Removed old video track for ${peer.name}`);
                 }
+
+                // Add screen share track
+                peer.connection.addTrack(screenVideoTrack, screenStream);
+                console.log(`✅ Added screen share track for ${peer.name}`);
             });
 
-            // Wait for all track replacements to complete
-            await Promise.all(replacePromises);
-            console.log('✅ All video tracks replaced with screen share');
-
             // Listen for screen share stop
-            videoTrack.onended = () => {
+            screenVideoTrack.onended = () => {
                 console.log('🖥️ Screen share stopped');
                 this.stopScreenShare();
             };
@@ -144,24 +142,24 @@ export class WebRTCManager {
 
         // Restore original camera video track
         if (this.localStream) {
-            const videoTrack = this.localStream.getVideoTracks()[0];
+            const cameraVideoTrack = this.localStream.getVideoTracks()[0];
 
-            // FIXED: Await replaceTrack for all peers
-            const replacePromises: Promise<void>[] = [];
             this.peers.forEach(peer => {
-                const sender = peer.connection.getSenders().find(s => s.track?.kind === 'video');
-                if (sender && videoTrack) {
-                    replacePromises.push(
-                        sender.replaceTrack(videoTrack).then(() => {
-                            console.log(`✅ Restored camera video for ${peer.name}`);
-                        })
-                    );
+                const senders = peer.connection.getSenders();
+                // Remove screen share track
+                const videoSender = senders.find(s => s.track?.kind === 'video');
+
+                if (videoSender && videoSender.track) {
+                    peer.connection.removeTrack(videoSender);
+                    console.log(`🗑️ Removed screen share track for ${peer.name}`);
+                }
+
+                // Add camera track back
+                if (cameraVideoTrack) {
+                    peer.connection.addTrack(cameraVideoTrack, this.localStream!);
+                    console.log(`✅ Restored camera video for ${peer.name}`);
                 }
             });
-
-            // Wait for all track replacements to complete
-            await Promise.all(replacePromises);
-            console.log('✅ All video tracks restored to camera');
         }
 
         console.log('✅ Screen share stopped');
