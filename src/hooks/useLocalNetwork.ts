@@ -393,8 +393,8 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             console.log('🖥️ Stopping screen share...');
             await webrtcRef.current.stopScreenShare();
 
-            // Get the camera stream back
-            const cameraStream = await webrtcRef.current.initLocalStream(true, true);
+            // Get the restored camera stream (stopScreenShare already restored it to peer connections)
+            const cameraStream = webrtcRef.current['localStream'];
             setLocalStream(cameraStream);
             setIsScreenSharing(false);
             console.log('✅ Screen share stopped, camera restored');
