@@ -157,20 +157,14 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                 } else if (message.type === 'offer') {
                     console.log('📥 Received offer from:', message.fromName);
 
-                    // ✅ FIXED: Check for existing connection before creating new one
+                    // ✅ FIXED: Allow renegotiation offers from already-connected peers
                     const existingPeer = peersRef.get(message.from);
-                    if (existingPeer) {
-                        const state = existingPeer.connection.connectionState;
-                        if (state === 'connected' || state === 'connecting') {
-                            console.log('⏭️ Ignoring offer, already connected to:', message.fromName);
-                            return;
-                        }
-                    }
 
                     try {
                         let peerConnection = existingPeer?.connection;
 
                         if (!peerConnection) {
+                            // New connection - create peer connection
                             peerConnection = await webrtc.createPeerConnection(message.from, message.fromName);
 
                             peerConnection.onicecandidate = (event) => {
@@ -185,6 +179,9 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                                     console.log('✅ ICE gathering complete for answer');
                                 }
                             };
+                        } else {
+                            // Existing connection - this is a renegotiation offer (e.g., for screen sharing)
+                            console.log('🔄 Received renegotiation offer from:', message.fromName);
                         }
 
                         console.log('📥 Setting remote description (offer)');
