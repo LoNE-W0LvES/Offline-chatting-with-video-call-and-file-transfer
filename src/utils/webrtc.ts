@@ -105,13 +105,22 @@ export class WebRTCManager {
             // Replace video track in all peer connections
             const videoTrack = screenStream.getVideoTracks()[0];
 
+            // FIXED: Await replaceTrack for all peers
+            const replacePromises: Promise<void>[] = [];
             this.peers.forEach(peer => {
                 const sender = peer.connection.getSenders().find(s => s.track?.kind === 'video');
                 if (sender) {
-                    sender.replaceTrack(videoTrack);
-                    console.log(`✅ Replaced video track with screen share for ${peer.name}`);
+                    replacePromises.push(
+                        sender.replaceTrack(videoTrack).then(() => {
+                            console.log(`✅ Replaced video track with screen share for ${peer.name}`);
+                        })
+                    );
                 }
             });
+
+            // Wait for all track replacements to complete
+            await Promise.all(replacePromises);
+            console.log('✅ All video tracks replaced with screen share');
 
             // Listen for screen share stop
             videoTrack.onended = () => {
@@ -137,13 +146,22 @@ export class WebRTCManager {
         if (this.localStream) {
             const videoTrack = this.localStream.getVideoTracks()[0];
 
+            // FIXED: Await replaceTrack for all peers
+            const replacePromises: Promise<void>[] = [];
             this.peers.forEach(peer => {
                 const sender = peer.connection.getSenders().find(s => s.track?.kind === 'video');
                 if (sender && videoTrack) {
-                    sender.replaceTrack(videoTrack);
-                    console.log(`✅ Restored camera video for ${peer.name}`);
+                    replacePromises.push(
+                        sender.replaceTrack(videoTrack).then(() => {
+                            console.log(`✅ Restored camera video for ${peer.name}`);
+                        })
+                    );
                 }
             });
+
+            // Wait for all track replacements to complete
+            await Promise.all(replacePromises);
+            console.log('✅ All video tracks restored to camera');
         }
 
         console.log('✅ Screen share stopped');
