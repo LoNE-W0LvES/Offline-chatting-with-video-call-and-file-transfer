@@ -298,12 +298,20 @@ export function useLocalNetwork(userName: string, roomId?: string) {
     const startVideo = useCallback(async () => {
         if (!webrtcRef.current) return;
 
+        // Remember current audio state to preserve mute status
+        const currentAudioState = isAudioEnabled;
+
         try {
             console.log('🎥 Initializing local media stream...');
             const stream = await webrtcRef.current.initLocalStream(true, true);
             setLocalStream(stream);
-            setIsAudioEnabled(true);
+            // Preserve audio muted state (don't unmute if user has muted)
+            setIsAudioEnabled(currentAudioState);
             setIsVideoEnabled(true);
+            // Apply the preserved audio state to the new stream
+            if (!currentAudioState) {
+                webrtcRef.current.toggleAudio(false);
+            }
             console.log('✅ Local media stream initialized successfully');
 
             // Add tracks to all existing peer connections and renegotiate
@@ -373,7 +381,11 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                     const stream = await webrtcRef.current.initLocalStream(false, true);
                     setLocalStream(stream);
                     setIsVideoEnabled(false);
-                    setIsAudioEnabled(true);
+                    // Preserve audio muted state
+                    setIsAudioEnabled(currentAudioState);
+                    if (!currentAudioState) {
+                        webrtcRef.current.toggleAudio(false);
+                    }
                     console.log('✅ Audio-only stream initialized');
 
                     // Add tracks to peers and renegotiate
@@ -402,7 +414,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                 }
             }
         }
-    }, []);
+    }, [isAudioEnabled]);
 
     const startScreenShare = useCallback(async () => {
         if (!webrtcRef.current) return;
