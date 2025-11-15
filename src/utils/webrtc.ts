@@ -67,6 +67,14 @@ export class WebRTCManager {
 
     async initLocalStream(video: boolean = true, audio: boolean = true): Promise<MediaStream> {
         try {
+            // Stop old stream before creating a new one
+            if (this.localStream) {
+                this.localStream.getTracks().forEach(track => {
+                    track.stop();
+                    console.log(`🛑 Stopped old ${track.kind} track before creating new stream`);
+                });
+            }
+
             const constraints: MediaStreamConstraints = {
                 video: video ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
                 audio: audio
