@@ -6,6 +6,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
     const webrtcRef = useRef<WebRTCManager | null>(null);
     const signalingRef = useRef<LocalSignalingServer | null>(null);
     const initializingRef = useRef(false);
+    const localStreamRef = useRef<MediaStream | null>(null);
     const [localPeerId, setLocalPeerId] = useState('');
     const [localPeerName, setLocalPeerName] = useState('');
 
@@ -16,6 +17,12 @@ export function useLocalNetwork(userName: string, roomId?: string) {
     const [isAudioEnabled, setIsAudioEnabled] = useState(true);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+    // Helper to update both state and ref
+    const updateLocalStream = useCallback((stream: MediaStream | null) => {
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+    }, []);
 
     useEffect(() => {
         if (!userName) {
@@ -41,7 +48,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                 console.log('🎤 Initializing audio-only stream (camera off by default)...');
                 const stream = await webrtc.initLocalStream(false, true);
                 if (isActive) {
-                    setLocalStream(stream);
+                    updateLocalStream(stream);
                     setIsVideoEnabled(false);
                     console.log('✅ Audio-only stream ready (camera off)');
                 }
@@ -286,6 +293,16 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             if (discoveryInterval) {
                 clearInterval(discoveryInterval);
             }
+
+            // Stop all local media tracks
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => {
+                    track.stop();
+                    console.log(`🛑 Stopped ${track.kind} track on unmount`);
+                });
+                localStreamRef.current = null;
+            }
+
             if (signalingRef.current) {
                 signalingRef.current.close();
             }
@@ -304,7 +321,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         try {
             console.log('🎥 Initializing local media stream...');
             const stream = await webrtcRef.current.initLocalStream(true, true);
-            setLocalStream(stream);
+            updateLocalStream(stream);
             // Preserve audio muted state (don't unmute if user has muted)
             setIsAudioEnabled(currentAudioState);
             setIsVideoEnabled(true);
@@ -347,7 +364,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             try {
                 console.log('⚠️ Trying video-only fallback...');
                 const stream = await webrtcRef.current.initLocalStream(true, false);
-                setLocalStream(stream);
+                updateLocalStream(stream);
                 setIsAudioEnabled(false);
                 setIsVideoEnabled(true);
                 console.log('✅ Video-only stream initialized');
@@ -379,7 +396,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                 try {
                     console.log('⚠️ Trying audio-only fallback...');
                     const stream = await webrtcRef.current.initLocalStream(false, true);
-                    setLocalStream(stream);
+                    updateLocalStream(stream);
                     setIsVideoEnabled(false);
                     // Preserve audio muted state
                     setIsAudioEnabled(currentAudioState);
@@ -422,7 +439,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         try {
             console.log('🖥️ Starting screen share...');
             const screenStream = await webrtcRef.current.startScreenShare();
-            setLocalStream(screenStream);
+            updateLocalStream(screenStream);
             setIsScreenSharing(true);
             console.log('✅ Screen share started successfully');
 
@@ -459,7 +476,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
 
             // Get the restored camera stream (stopScreenShare already restored it to peer connections)
             const cameraStream = webrtcRef.current['localStream'];
-            setLocalStream(cameraStream);
+            updateLocalStream(cameraStream);
             setIsScreenSharing(false);
             console.log('✅ Screen share stopped, camera restored');
 
@@ -529,6 +546,15 @@ export function useLocalNetwork(userName: string, roomId?: string) {
     }, [isVideoEnabled, localStream, startVideo]);
 
     const cleanup = useCallback(() => {
+        // Stop all local media tracks
+        if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach(track => {
+                track.stop();
+                console.log(`🛑 Stopped ${track.kind} track`);
+            });
+            updateLocalStream(null);
+        }
+
         webrtcRef.current?.cleanup();
         signalingRef.current?.close();
 
@@ -542,7 +568,7 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             }).catch(err => console.error('Failed to end call:', err));
             localStorage.removeItem('activeCallId');
         }
-    }, []);
+    }, [updateLocalStream]);
 
     return {
         peers,
