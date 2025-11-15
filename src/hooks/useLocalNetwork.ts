@@ -46,14 +46,30 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                 }
             } catch (error) {
                 console.error('❌ Failed to initialize media:', error);
+                // Try video-only (in case microphone was denied)
                 try {
-                    const stream = await webrtc.initLocalStream(false, true);
+                    console.log('⚠️ Trying video-only fallback...');
+                    const stream = await webrtc.initLocalStream(true, false);
                     if (isActive) {
                         setLocalStream(stream);
-                        setIsVideoEnabled(false);
+                        setIsAudioEnabled(false);
+                        console.log('✅ Video-only stream initialized');
                     }
-                } catch (audioError) {
-                    console.error('❌ Failed to get audio:', audioError);
+                } catch (videoError) {
+                    console.error('❌ Failed to get video:', videoError);
+                    // Try audio-only (in case camera was denied)
+                    try {
+                        console.log('⚠️ Trying audio-only fallback...');
+                        const stream = await webrtc.initLocalStream(false, true);
+                        if (isActive) {
+                            setLocalStream(stream);
+                            setIsVideoEnabled(false);
+                            console.log('✅ Audio-only stream initialized');
+                        }
+                    } catch (audioError) {
+                        console.error('❌ Failed to get audio:', audioError);
+                        console.log('⚠️ Continuing without media');
+                    }
                 }
             }
 
@@ -309,6 +325,8 @@ export function useLocalNetwork(userName: string, roomId?: string) {
             console.log('🎥 Initializing local media stream...');
             const stream = await webrtcRef.current.initLocalStream(true, true);
             setLocalStream(stream);
+            setIsAudioEnabled(true);
+            setIsVideoEnabled(true);
             console.log('✅ Local media stream initialized successfully');
 
             // Add tracks to all existing peer connections and renegotiate
@@ -339,15 +357,72 @@ export function useLocalNetwork(userName: string, roomId?: string) {
                 }
             }
         } catch (error) {
-            console.error('❌ Failed to start video:', error);
+            console.error('❌ Failed to start video+audio:', error);
+            // Try video-only (in case microphone was denied)
             try {
-                console.log('⚠️ Trying audio-only fallback...');
-                const stream = await webrtcRef.current.initLocalStream(false, true);
+                console.log('⚠️ Trying video-only fallback...');
+                const stream = await webrtcRef.current.initLocalStream(true, false);
                 setLocalStream(stream);
-                setIsVideoEnabled(false);
-                console.log('✅ Audio-only stream initialized');
-            } catch (audioError) {
-                console.error('❌ Failed to start audio:', audioError);
+                setIsAudioEnabled(false);
+                setIsVideoEnabled(true);
+                console.log('✅ Video-only stream initialized');
+
+                // Add tracks to peers and renegotiate
+                const peers = Array.from(webrtcRef.current['peers'].values());
+                if (peers.length > 0) {
+                    for (const peer of peers) {
+                        stream.getTracks().forEach(track => {
+                            const sender = peer.connection.getSenders().find(s => s.track?.kind === track.kind);
+                            if (!sender) {
+                                peer.connection.addTrack(track, stream);
+                            }
+                        });
+                        if (peer.connection.signalingState === 'stable') {
+                            const offer = await peer.connection.createOffer();
+                            await peer.connection.setLocalDescription(offer);
+                            signalingRef.current?.send({
+                                type: 'offer',
+                                to: peer.id,
+                                data: offer,
+                            });
+                        }
+                    }
+                }
+            } catch (videoError) {
+                console.error('❌ Failed to get video:', videoError);
+                // Try audio-only (in case camera was denied)
+                try {
+                    console.log('⚠️ Trying audio-only fallback...');
+                    const stream = await webrtcRef.current.initLocalStream(false, true);
+                    setLocalStream(stream);
+                    setIsVideoEnabled(false);
+                    setIsAudioEnabled(true);
+                    console.log('✅ Audio-only stream initialized');
+
+                    // Add tracks to peers and renegotiate
+                    const peers = Array.from(webrtcRef.current['peers'].values());
+                    if (peers.length > 0) {
+                        for (const peer of peers) {
+                            stream.getTracks().forEach(track => {
+                                const sender = peer.connection.getSenders().find(s => s.track?.kind === track.kind);
+                                if (!sender) {
+                                    peer.connection.addTrack(track, stream);
+                                }
+                            });
+                            if (peer.connection.signalingState === 'stable') {
+                                const offer = await peer.connection.createOffer();
+                                await peer.connection.setLocalDescription(offer);
+                                signalingRef.current?.send({
+                                    type: 'offer',
+                                    to: peer.id,
+                                    data: offer,
+                                });
+                            }
+                        }
+                    }
+                } catch (audioError) {
+                    console.error('❌ Failed to get audio:', audioError);
+                }
             }
         }
     }, []);
