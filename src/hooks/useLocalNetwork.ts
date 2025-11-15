@@ -38,39 +38,16 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         // Initialize media stream FIRST, then start signaling
         const initializeAndConnect = async () => {
             try {
-                console.log('🎥 Initializing local media stream on startup...');
-                const stream = await webrtc.initLocalStream(true, true);
+                console.log('🎤 Initializing audio-only stream (camera off by default)...');
+                const stream = await webrtc.initLocalStream(false, true);
                 if (isActive) {
                     setLocalStream(stream);
-                    console.log('✅ Local media stream ready before peer connections');
+                    setIsVideoEnabled(false);
+                    console.log('✅ Audio-only stream ready (camera off)');
                 }
             } catch (error) {
-                console.error('❌ Failed to initialize media:', error);
-                // Try video-only (in case microphone was denied)
-                try {
-                    console.log('⚠️ Trying video-only fallback...');
-                    const stream = await webrtc.initLocalStream(true, false);
-                    if (isActive) {
-                        setLocalStream(stream);
-                        setIsAudioEnabled(false);
-                        console.log('✅ Video-only stream initialized');
-                    }
-                } catch (videoError) {
-                    console.error('❌ Failed to get video:', videoError);
-                    // Try audio-only (in case camera was denied)
-                    try {
-                        console.log('⚠️ Trying audio-only fallback...');
-                        const stream = await webrtc.initLocalStream(false, true);
-                        if (isActive) {
-                            setLocalStream(stream);
-                            setIsVideoEnabled(false);
-                            console.log('✅ Audio-only stream initialized');
-                        }
-                    } catch (audioError) {
-                        console.error('❌ Failed to get audio:', audioError);
-                        console.log('⚠️ Continuing without media');
-                    }
-                }
+                console.error('❌ Failed to initialize audio:', error);
+                console.log('⚠️ Continuing without media (camera and mic off)');
             }
 
             // Only start signaling AFTER media is initialized
@@ -523,12 +500,21 @@ export function useLocalNetwork(userName: string, roomId?: string) {
         setIsAudioEnabled(newState);
     }, [isAudioEnabled]);
 
-    const toggleVideo = useCallback(() => {
+    const toggleVideo = useCallback(async () => {
         if (!webrtcRef.current) return;
+
         const newState = !isVideoEnabled;
-        webrtcRef.current.toggleVideo(newState);
-        setIsVideoEnabled(newState);
-    }, [isVideoEnabled]);
+
+        // If turning video ON and no video track exists, request camera
+        if (newState && localStream && localStream.getVideoTracks().length === 0) {
+            console.log('📹 Camera was off, requesting camera access...');
+            await startVideo();
+        } else {
+            // Just toggle existing video track
+            webrtcRef.current.toggleVideo(newState);
+            setIsVideoEnabled(newState);
+        }
+    }, [isVideoEnabled, localStream, startVideo]);
 
     const cleanup = useCallback(() => {
         webrtcRef.current?.cleanup();
