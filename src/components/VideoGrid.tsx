@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Peer } from '../utils/webrtc';
-import { MicOff, VideoOff } from 'lucide-react';
+import { MicOff, VideoOff, Maximize, Minimize } from 'lucide-react';
 
 interface VideoGridProps {
   localStream: MediaStream | null;
@@ -44,8 +44,37 @@ interface VideoTileProps {
 }
 
 function VideoTile({ videoRef, peerName, isLocal, isAudioEnabled, isVideoEnabled }: VideoTileProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error('Error toggling fullscreen:', err);
+    }
+  };
+
+  // Listen for fullscreen changes (e.g., user presses ESC)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   return (
-    <div className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video">
+    <div ref={containerRef} className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video group">
       <video
         ref={videoRef}
         autoPlay
@@ -70,6 +99,18 @@ function VideoTile({ videoRef, peerName, isLocal, isAudioEnabled, isVideoEnabled
           )}
         </div>
       </div>
+      {/* Fullscreen button */}
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-2 right-2 bg-black bg-opacity-70 hover:bg-opacity-90 p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
+        title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+      >
+        {isFullscreen ? (
+          <Minimize className="w-5 h-5 text-white" />
+        ) : (
+          <Maximize className="w-5 h-5 text-white" />
+        )}
+      </button>
     </div>
   );
 }
@@ -80,6 +121,8 @@ interface PeerVideoTileProps {
 
 function PeerVideoTile({ peer }: PeerVideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     if (videoRef.current && peer.stream) {
@@ -87,8 +130,34 @@ function PeerVideoTile({ peer }: PeerVideoTileProps) {
     }
   }, [peer.stream]);
 
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (err) {
+      console.error('Error toggling fullscreen:', err);
+    }
+  };
+
+  // Listen for fullscreen changes (e.g., user presses ESC)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   return (
-    <div className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video">
+    <div ref={containerRef} className="relative bg-gray-900 rounded-lg overflow-hidden aspect-video group">
       {peer.stream ? (
         <video
           ref={videoRef}
@@ -110,6 +179,18 @@ function PeerVideoTile({ peer }: PeerVideoTileProps) {
           {peer.name}
         </span>
       </div>
+      {/* Fullscreen button */}
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-2 right-2 bg-black bg-opacity-70 hover:bg-opacity-90 p-2 rounded-full transition-all opacity-0 group-hover:opacity-100"
+        title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+      >
+        {isFullscreen ? (
+          <Minimize className="w-5 h-5 text-white" />
+        ) : (
+          <Maximize className="w-5 h-5 text-white" />
+        )}
+      </button>
     </div>
   );
 }
